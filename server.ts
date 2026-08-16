@@ -181,8 +181,101 @@ app.post(
 );
 
 // -------------------------------------------------------------
-// 5. GLOBAL ADMIN RTP & WIN/LOSE RATIO CONTROL ENDPOINTS
+// 5. GLOBAL ADMIN RTP, CONFIG, AGENTS, BANKING, CHAT API
 // -------------------------------------------------------------
+let inMemoryConfig: any = {
+  globalRtp: 95.0,
+  rtpBias: "standard",
+  customWinRatio: 0.45,
+  forceLoseMode: false,
+  housePool: 1000000,
+  cryptoWallets: []
+};
+let inMemoryAgents: any[] = [];
+let inMemoryBankingRequests: any[] = [];
+let inMemoryChats: Record<string, any[]> = {};
+
+app.get("/api/admin/config", (req, res) => {
+  const rtp = getServerRtpConfig();
+  res.json({
+    success: true,
+    rtpConfig: {
+      globalRtp: rtp.globalRtp,
+      rtpBias: rtp.rtpBias,
+      customWinRatio: rtp.customWinRatio,
+      forceLoseMode: rtp.forceLoseMode,
+    },
+    housePool: inMemoryConfig.housePool || 1000000,
+    cryptoWallets: inMemoryConfig.cryptoWallets || [],
+  });
+});
+
+app.post("/api/admin/config", (req, res) => {
+  try {
+    const { globalRtp, rtpBias, customWinRatio, forceLoseMode, housePool, cryptoWallets } = req.body;
+    setServerRtpConfig({
+      ...(typeof globalRtp === "number" ? { globalRtp } : {}),
+      ...(rtpBias ? { rtpBias } : {}),
+      ...(typeof customWinRatio === "number" ? { customWinRatio } : {}),
+      ...(typeof forceLoseMode === "boolean" ? { forceLoseMode } : {}),
+    });
+    if (typeof housePool === "number") inMemoryConfig.housePool = housePool;
+    if (cryptoWallets && Array.isArray(cryptoWallets)) inMemoryConfig.cryptoWallets = cryptoWallets;
+
+    return res.json({
+      success: true,
+      message: "Admin configuration updated.",
+      rtpConfig: getServerRtpConfig(),
+      housePool: inMemoryConfig.housePool,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/admin/agents", (req, res) => {
+  res.json({ success: true, agents: inMemoryAgents });
+});
+
+app.post("/api/admin/agents", (req, res) => {
+  const { agents } = req.body;
+  if (Array.isArray(agents)) {
+    inMemoryAgents = agents;
+    return res.json({ success: true, agentsCount: inMemoryAgents.length });
+  }
+  return res.status(400).json({ error: "INVALID_AGENTS" });
+});
+
+app.get("/api/admin/banking-requests", (req, res) => {
+  res.json({ success: true, requests: inMemoryBankingRequests });
+});
+
+app.post("/api/admin/banking-requests", (req, res) => {
+  const { requests } = req.body;
+  if (Array.isArray(requests)) {
+    inMemoryBankingRequests = requests;
+    return res.json({ success: true, count: inMemoryBankingRequests.length });
+  }
+  return res.status(400).json({ error: "INVALID_REQUESTS" });
+});
+
+app.get("/api/chat/messages", (req, res) => {
+  const requestId = (req.query.requestId as string) || "global";
+  res.json({ success: true, requestId, messages: inMemoryChats[requestId] || [] });
+});
+
+app.post("/api/chat/messages", (req, res) => {
+  const requestId = req.body.requestId || "global";
+  if (Array.isArray(req.body.messages)) {
+    inMemoryChats[requestId] = req.body.messages.slice(-50);
+  } else if (req.body.message) {
+    if (!inMemoryChats[requestId]) inMemoryChats[requestId] = [];
+    inMemoryChats[requestId].push(req.body.message);
+    inMemoryChats[requestId] = inMemoryChats[requestId].slice(-50);
+  }
+  res.json({ success: true, requestId, count: (inMemoryChats[requestId] || []).length });
+});
+
 app.get("/api/admin/rtp", (req, res) => {
   res.json({
     success: true,

@@ -109,8 +109,8 @@ export async function syncCloudConfigFromD1() {
  */
 export async function initDatabaseDefaults() {
   try {
-    // Trigger Cloudflare D1 sync in background immediately
-    syncCloudConfigFromD1().catch(() => {});
+    // 1. First await Cloudflare D1 sync so new devices receive cloud agents/config BEFORE writing any local fallback defaults
+    await syncCloudConfigFromD1().catch(() => {});
 
     // A. Players
     const localPlayers = localStorage.getItem("registered_players_v1");
@@ -124,11 +124,12 @@ export async function initDatabaseDefaults() {
       localStorage.setItem("casino_banking_requests_v1", JSON.stringify(DEFAULT_BANKING_REQUESTS));
     }
 
-    // C. P2P Agents
+    // C. P2P Agents (Only set hardcoded default if D1 did not supply any agents)
     const localAgents = localStorage.getItem("casino_p2p_agents_v1");
     if (!localAgents) {
       localStorage.setItem("casino_p2p_agents_v1", JSON.stringify(DEFAULT_P2P_AGENTS));
       localStorage.setItem("casino_agents_v1", JSON.stringify(DEFAULT_P2P_AGENTS));
+      localStorage.setItem("p2p_agents", JSON.stringify(DEFAULT_P2P_AGENTS));
     }
 
     // D. System Config
