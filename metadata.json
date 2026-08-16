@@ -1,0 +1,8 @@
+{
+  "name": "NexaSpin Crypto Casino",
+  "description": "Next-generation crypto casino dashboard featuring Provably Fair Slots, Blackjack, Baccarat, Plinko, Mines, Daily Rewards, and VIP Vance Host.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,382 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Cinzel:wght@700;800;900&family=JetBrains+Mono:wght@400;500;600;700;850&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cinzel", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  /* Default to Neon */
+  --theme-accent: #d946ef;
+  --theme-accent-hover: #e879f9;
+  --theme-accent-border: rgba(217, 70, 239, 0.4);
+  --theme-accent-glow: rgba(217, 70, 239, 0.45);
+  --theme-accent-bg: rgba(217, 70, 239, 0.08);
+  --theme-accent-rgb: 217, 70, 239;
+}
+
+body.theme-neon {
+  --theme-accent: #d946ef;
+  --theme-accent-hover: #e879f9;
+  --theme-accent-border: rgba(217, 70, 239, 0.4);
+  --theme-accent-glow: rgba(217, 70, 239, 0.45);
+  --theme-accent-bg: rgba(217, 70, 239, 0.08);
+  --theme-accent-rgb: 217, 70, 239;
+}
+
+body.theme-gold {
+  --theme-accent: #f59e0b;
+  --theme-accent-hover: #fbbf24;
+  --theme-accent-border: rgba(245, 158, 11, 0.4);
+  --theme-accent-glow: rgba(245, 158, 11, 0.45);
+  --theme-accent-bg: rgba(245, 158, 11, 0.08);
+  --theme-accent-rgb: 245, 158, 11;
+}
+
+body.theme-midnight {
+  --theme-accent: #06b6d4;
+  --theme-accent-hover: #22d3ee;
+  --theme-accent-border: rgba(6, 182, 212, 0.4);
+  --theme-accent-glow: rgba(6, 182, 212, 0.45);
+  --theme-accent-bg: rgba(6, 182, 212, 0.08);
+  --theme-accent-rgb: 6, 182, 212;
+}
+
+/* Custom Premium Glassmorphism and Neon Ambient Glows */
+@utility glass-premium {
+  background: rgba(10, 11, 22, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+@utility text-accent {
+  color: var(--theme-accent);
+}
+
+@utility bg-accent {
+  background-color: var(--theme-accent);
+}
+
+@utility border-accent {
+  border-color: var(--theme-accent-border);
+}
+
+@utility glow-accent {
+  box-shadow: 0 0 25px var(--theme-accent-glow), inset 0 0 15px var(--theme-accent-bg);
+}
+
+@utility glow-fuchsia {
+  box-shadow: 0 0 25px rgba(217, 70, 239, 0.15), inset 0 0 15px rgba(217, 70, 239, 0.05);
+}
+
+@utility glow-emerald {
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.15), inset 0 0 15px rgba(16, 185, 129, 0.05);
+}
+
+@utility glow-gold {
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.15), inset 0 0 15px rgba(245, 158, 11, 0.05);
+}
+
+/* Premium Webkit Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(10, 11, 22, 0.4);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Luxury card sweep animation */
+@keyframes sweep {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(200%) rotate(45deg); }
+}
+
+@keyframes marquee {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-33.33%, 0, 0); }
+}
+
+.animate-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: marquee 30s linear infinite;
+}
+
+.animate-sweep {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-sweep::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 30%;
+  height: 200%;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.13), transparent);
+  transform: rotate(45deg);
+  animation: sweep 4.5s infinite ease-in-out;
+}
+
+@keyframes goldPulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.4), inset 0 0 5px rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(245, 158, 11, 0.85), inset 0 0 10px rgba(245, 158, 11, 0.35);
+    border-color: rgba(245, 158, 11, 0.85);
+  }
+}
+
+@keyframes pulseGlowGame {
+  0%, 100% {
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.3), 0 0 25px rgba(217, 70, 239, 0.15), inset 0 0 10px rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(255, 215, 0, 0.7), 0 0 45px rgba(236, 72, 153, 0.4), inset 0 0 18px rgba(255, 215, 0, 0.2);
+    border-color: rgba(255, 215, 0, 0.85);
+  }
+}
+
+@keyframes pulseGlowNeonGreen {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(0, 255, 102, 0.3), inset 0 0 8px rgba(0, 255, 102, 0.08);
+    border-color: rgba(0, 255, 102, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(0, 255, 102, 0.75), inset 0 0 16px rgba(0, 255, 102, 0.2);
+    border-color: rgba(0, 255, 102, 0.85);
+  }
+}
+
+@keyframes pulseGlowCyan {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(6, 182, 212, 0.3), inset 0 0 8px rgba(6, 182, 212, 0.08);
+    border-color: rgba(6, 182, 212, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(6, 182, 212, 0.75), inset 0 0 16px rgba(6, 182, 212, 0.2);
+    border-color: rgba(6, 182, 212, 0.85);
+  }
+}
+
+@keyframes pulseGlowRose {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(244, 63, 94, 0.3), inset 0 0 8px rgba(244, 63, 94, 0.08);
+    border-color: rgba(244, 63, 94, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(244, 63, 94, 0.75), inset 0 0 16px rgba(244, 63, 94, 0.2);
+    border-color: rgba(244, 63, 94, 0.85);
+  }
+}
+
+@keyframes pulseGlowPurple {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.3), inset 0 0 8px rgba(168, 85, 247, 0.08);
+    border-color: rgba(168, 85, 247, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(168, 85, 247, 0.75), inset 0 0 16px rgba(168, 85, 247, 0.2);
+    border-color: rgba(168, 85, 247, 0.85);
+  }
+}
+
+@keyframes pulseGlowBlue {
+  0%, 100% {
+    box-shadow: 0 0 14px rgba(59, 130, 246, 0.3), inset 0 0 8px rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(59, 130, 246, 0.75), inset 0 0 16px rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.85);
+  }
+}
+
+@keyframes laserSheen {
+  0% {
+    transform: translateX(-150%) skewX(-25deg);
+  }
+  20%, 100% {
+    transform: translateX(250%) skewX(-25deg);
+  }
+}
+
+.laser-sheen-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.laser-sheen-effect::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 30%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.03) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 15;
+  animation: laserSheen 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-gold-pulse-glow {
+  animation: goldPulseGlow 2s infinite ease-in-out;
+}
+
+.animate-game-card-pulse {
+  animation: pulseGlowGame 3s infinite ease-in-out;
+}
+
+.animate-neon-pulse {
+  animation: pulseGlowNeonGreen 2.5s infinite ease-in-out;
+}
+
+.animate-neon-pulse-cyan {
+  animation: pulseGlowCyan 2.8s infinite ease-in-out;
+}
+
+.animate-neon-pulse-rose {
+  animation: pulseGlowRose 2.6s infinite ease-in-out;
+}
+
+.animate-neon-pulse-purple {
+  animation: pulseGlowPurple 3s infinite ease-in-out;
+}
+
+.animate-neon-pulse-blue {
+  animation: pulseGlowBlue 2.8s infinite ease-in-out;
+}
+
+@keyframes bannerAuraBreathing {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.03);
+  }
+}
+
+.animate-banner-aura {
+  animation: bannerAuraBreathing 4s infinite ease-in-out;
+}
+
+/* Global mobile horizontal scrolling and blank space protection */
+html, body, #root {
+  max-width: 100%;
+  overflow-x: hidden;
+  background-color: #080B11;
+  color: #F3F4F6;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+canvas, .game-canvas, button, [role="button"] {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@utility glow-neon {
+  box-shadow: 0 0 20px rgba(0, 255, 102, 0.35), inset 0 0 10px rgba(0, 255, 102, 0.1);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 12px);
+}
+
+/* Hi-Tech Cyber Casino Design Utilities */
+.bg-cyber-grid {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.bg-radial-ambient {
+  background: 
+    radial-gradient(circle at 15% 15%, rgba(217, 70, 239, 0.09) 0%, transparent 50%),
+    radial-gradient(circle at 85% 85%, rgba(245, 158, 11, 0.09) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.06) 0%, transparent 65%);
+}
+
+.hitech-glass {
+  background: rgba(12, 17, 26, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 36px 0 rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+.luxury-vault-glow {
+  box-shadow: 0 0 35px rgba(245, 158, 11, 0.25), 0 20px 60px -15px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.gold-gradient-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #fde047 50%, #d97706 100%);
+  color: #080B11;
+  font-weight: 900;
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.45);
+}
+
+.gold-gradient-btn:hover {
+  background: linear-gradient(135deg, #fbbf24 0%, #fef08a 50%, #f59e0b 100%);
+  box-shadow: 0 0 35px rgba(245, 158, 11, 0.7);
+}
+
+.cyber-shimmer-border {
+  position: relative;
+}
+.cyber-shimmer-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.6), rgba(217, 70, 239, 0.2), rgba(6, 182, 212, 0.6));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(1000%); }
+}
+
+.scanline-effect::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(to right, transparent, rgba(0, 255, 102, 0.35), transparent);
+  animation: scanline 8s linear infinite;
+  pointer-events: none;
+}
