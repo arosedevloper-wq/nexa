@@ -228,7 +228,7 @@ export const SpeedBingo80Game: React.FC<SpeedBingo80GameProps> = ({
           <div>
             <label className="text-xs font-semibold text-slate-300 mb-2 flex items-center justify-between">
               <span>CARD BET AMOUNT ($)</span>
-              <span className="text-[10px] text-purple-400">MIN $10 • MAX $500</span>
+              <span className="text-[10px] text-purple-400">MIN $0.10 • MAX $500</span>
             </label>
             <div className="relative">
               <input

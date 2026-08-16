@@ -117,7 +117,7 @@ export const RummyGame: React.FC<RummyGameProps> = ({
           <input
             type="number"
             value={betAmount}
-            onChange={(e) => setBetAmount(Math.max(10, Number(e.target.value)))}
+            onChange={(e) => setBetAmount(Math.max(0.10, Number(e.target.value)))}
             disabled={isMelding}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 font-mono text-amber-300 font-bold"
           />

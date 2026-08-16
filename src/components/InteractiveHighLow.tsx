@@ -280,11 +280,12 @@ export default function InteractiveHighLow({ chips, onWin, onLose, onCommentaryR
 
               <input
                 type="number"
-                min={10}
-                max={Math.max(10, chips)}
+                min={0.10}
+                step={0.10}
+                max={Math.max(0.10, chips)}
                 disabled={isPlaying}
                 value={bet}
-                onChange={(e) => setBet(Math.max(10, Number(e.target.value)))}
+                onChange={(e) => setBet(Math.max(0.10, Number(e.target.value)))}
                 className="w-full px-4 py-3 bg-slate-950 border border-white/[0.04] disabled:opacity-50 hover:border-slate-850 focus:border-pink-500 focus:outline-none rounded-xl font-mono text-xs font-bold text-white transition-all shadow-inner"
               />
 

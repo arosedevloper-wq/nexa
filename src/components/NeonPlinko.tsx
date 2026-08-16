@@ -541,10 +541,11 @@ export default function NeonPlinko({ chips, onWin, onLose, onCommentaryRequest }
             <div className="flex gap-2">
               <input
                 type="number"
-                min={5}
-                max={Math.max(5, chips)}
+                min={0.10}
+                step={0.10}
+                max={Math.max(0.10, chips)}
                 value={bet}
-                onChange={(e) => setBet(Math.max(5, Number(e.target.value)))}
+                onChange={(e) => setBet(Math.max(0.10, Number(e.target.value)))}
                 className="flex-1 px-4 py-3 bg-slate-950 border border-white/[0.04] hover:border-slate-800 focus:border-indigo-500 focus:outline-none rounded-xl font-mono text-xs font-bold text-white transition-all shadow-inner"
               />
             </div>

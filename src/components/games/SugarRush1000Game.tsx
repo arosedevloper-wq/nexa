@@ -341,14 +341,14 @@ export const SugarRush1000Game: React.FC<SugarRush1000GameProps> = ({
           <div>
             <label className="text-xs font-semibold text-slate-300 mb-2 flex items-center justify-between">
               <span>BET AMOUNT ($)</span>
-              <span className="text-[10px] text-fuchsia-400">MIN $10 • MAX $5,000</span>
+              <span className="text-[10px] text-fuchsia-400">MIN $0.10 • MAX $5,000</span>
             </label>
             <div className="relative">
               <input
                 type="number"
                 disabled={isSpinning || freeSpinsLeft > 0}
                 value={bet}
-                onChange={(e) => setBet(Math.max(10, Math.min(5000, Number(e.target.value))))}
+                onChange={(e) => setBet(Math.max(0.10, Math.min(5000, Number(e.target.value))))}
                 className="w-full bg-slate-950 border border-slate-700 focus:border-fuchsia-500 rounded-xl px-4 py-2.5 text-amber-300 font-bold text-lg outline-none disabled:opacity-50 transition-all"
               />
               <span className="absolute right-3 top-3 text-xs font-bold text-slate-500">USD</span>

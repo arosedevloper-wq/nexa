@@ -270,7 +270,7 @@ export const CrazyTimeGame: React.FC<CrazyTimeGameProps> = ({
             type="number"
             disabled={isSpinning}
             value={betAmount}
-            onChange={(e) => setBetAmount(Math.max(10, Math.min(5000, Number(e.target.value))))}
+            onChange={(e) => setBetAmount(Math.max(0.10, Math.min(5000, Number(e.target.value))))}
             className="w-24 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-amber-300 font-bold text-sm outline-none"
           />
           {quickBets.map((val) => (

@@ -319,7 +319,7 @@ export const Classic65BlackjackGame: React.FC<Classic65BlackjackGameProps> = ({
             type="number"
             disabled={gameState === "PLAYING" || gameState === "DEALER_TURN"}
             value={bet}
-            onChange={(e) => setBet(Math.max(10, Math.min(5000, Number(e.target.value))))}
+            onChange={(e) => setBet(Math.max(0.10, Math.min(5000, Number(e.target.value))))}
             className="w-24 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-amber-300 font-bold text-sm outline-none"
           />
           {chipValues.map((val) => (
