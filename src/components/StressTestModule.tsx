@@ -143,7 +143,7 @@ export default function StressTestModule({ onAddAuditLog }: StressTestModuleProp
         const latency = Math.round(endTime - startTime);
 
         const status = response.status;
-        const data = await response.json();
+        const data = (await response.json()) as any;
 
         setTotalRequests((prev) => prev + 1);
         setLatencies((prev) => [...prev.slice(-200), latency]);

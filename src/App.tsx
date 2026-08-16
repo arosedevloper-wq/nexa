@@ -1199,7 +1199,7 @@ export default function App() {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as any;
         setCommentaryState({
           commentary: data.commentary,
           tips: data.tips,

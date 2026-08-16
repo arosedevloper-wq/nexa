@@ -37,7 +37,7 @@ export async function playServerAuthoritativeGame(
       }),
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as any;
 
     if (!response.ok) {
       return {
@@ -88,7 +88,7 @@ export async function submitServerWithdrawal(
       }),
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as any;
 
     if (!response.ok) {
       return {
@@ -127,7 +127,7 @@ export async function updateServerRtpConfig(config: {
       body: JSON.stringify(config),
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as any;
     return data;
   } catch (err: any) {
     console.error("Failed to update server RTP config:", err);
