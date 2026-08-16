@@ -408,6 +408,17 @@ export function sendTransactionChatMessage(
     window.dispatchEvent(new Event("casino_tx_chat_updated"));
     window.dispatchEvent(new CustomEvent("p2p_chat_updated", { detail: { requestId: fullMsg.requestId, message: fullMsg } }));
     window.dispatchEvent(new CustomEvent("casino_tx_chat_updated", { detail: { requestId: fullMsg.requestId, message: fullMsg } }));
+
+    // 5. Cloudflare D1 Async Sync
+    fetch("/api/chat/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requestId: fullMsg.requestId,
+        message: cleanMsgForStorage,
+        messages: cappedForReq,
+      }),
+    }).catch((e) => console.warn("D1 Chat Sync Notice:", e));
   } catch (err) {
     console.error("Error saving tx chat message:", err);
   }

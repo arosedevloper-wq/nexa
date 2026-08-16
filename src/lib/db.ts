@@ -38,10 +38,80 @@ export function getPlayerDocId(email: string): string {
 }
 
 /**
- * Local Database Initializer
+ * Cloudflare Edge API Cloud Sync Layer
+ */
+export async function syncCloudConfigFromD1() {
+  try {
+    const res = await fetch("/api/admin/config");
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        if (data.rtpConfig) {
+          const cfg = data.rtpConfig;
+          const currentConfigStr = localStorage.getItem("casino_system_config_v1");
+          const currentConfig = currentConfigStr ? JSON.parse(currentConfigStr) : { ...DEFAULT_SYSTEM_CONFIG };
+          
+          if (typeof cfg.globalRtp === "number") currentConfig.globalRtp = cfg.globalRtp;
+          if (cfg.rtpBias) {
+            currentConfig.rtpBias = cfg.rtpBias;
+            localStorage.setItem("casino_rtp_bias", cfg.rtpBias);
+          }
+          if (typeof cfg.customWinRatio === "number") {
+            currentConfig.customWinRatio = cfg.customWinRatio;
+            localStorage.setItem("casino_custom_win_ratio", cfg.customWinRatio.toString());
+          }
+          if (typeof cfg.forceLoseMode === "boolean") {
+            currentConfig.forceLoseMode = cfg.forceLoseMode;
+            localStorage.setItem("casino_force_lose_mode", String(cfg.forceLoseMode));
+          }
+          if (typeof data.housePool === "number") {
+            currentConfig.housePool = data.housePool;
+            localStorage.setItem("casino_house_pool", data.housePool.toString());
+          }
+          localStorage.setItem("casino_system_config_v1", JSON.stringify(currentConfig));
+        }
+        if (Array.isArray(data.cryptoWallets) && data.cryptoWallets.length > 0) {
+          localStorage.setItem("casino_master_crypto_wallets_v2", JSON.stringify(data.cryptoWallets));
+        }
+      }
+    }
+  } catch (e) {
+    // Graceful offline fallback
+  }
+
+  // Also sync Agents from D1
+  try {
+    const resAgents = await fetch("/api/admin/agents");
+    if (resAgents.ok) {
+      const aData = await resAgents.json();
+      if (aData.success && Array.isArray(aData.agents) && aData.agents.length > 0) {
+        safeSetLocalStorage("casino_p2p_agents_v1", JSON.stringify(aData.agents));
+        safeSetLocalStorage("casino_agents_v1", JSON.stringify(aData.agents));
+        safeSetLocalStorage("p2p_agents", JSON.stringify(aData.agents));
+      }
+    }
+  } catch (e) {}
+
+  // Also sync Banking Requests from D1
+  try {
+    const resReqs = await fetch("/api/admin/banking-requests");
+    if (resReqs.ok) {
+      const rData = await resReqs.json();
+      if (rData.success && Array.isArray(rData.requests) && rData.requests.length > 0) {
+        safeSetLocalStorage("casino_banking_requests_v1", JSON.stringify(rData.requests));
+      }
+    }
+  } catch (e) {}
+}
+
+/**
+ * Local Database Initializer with Cloudflare D1 Fetch
  */
 export async function initDatabaseDefaults() {
   try {
+    // Trigger Cloudflare D1 sync in background immediately
+    syncCloudConfigFromD1().catch(() => {});
+
     // A. Players
     const localPlayers = localStorage.getItem("registered_players_v1");
     if (!localPlayers) {
@@ -120,6 +190,13 @@ export async function saveAllBankingRequestsToDatabase(requests: BankingRequest[
   try {
     safeSetLocalStorage("casino_banking_requests_v1", JSON.stringify(requests));
     window.dispatchEvent(new Event("storage"));
+
+    // Cloudflare D1 Async Sync
+    fetch("/api/admin/banking-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requests }),
+    }).catch((e) => console.warn("D1 Banking Requests Sync Notice:", e));
   } catch (e) {
     console.error("Error saving all banking requests to database:", e);
   }
@@ -136,10 +213,7 @@ export async function saveP2PAgentToDatabase(agent: P2PAgent) {
     } else {
       list.push(agent);
     }
-    safeSetLocalStorage("casino_p2p_agents_v1", JSON.stringify(list));
-    safeSetLocalStorage("casino_agents_v1", JSON.stringify(list));
-    window.dispatchEvent(new Event("storage"));
-    window.dispatchEvent(new CustomEvent("p2p_state_updated"));
+    await saveAllP2PAgentsToDatabase(list);
   } catch (e) {
     console.error("Error saving P2P agent to database:", e);
   }
@@ -149,8 +223,16 @@ export async function saveAllP2PAgentsToDatabase(agents: P2PAgent[]) {
   try {
     safeSetLocalStorage("casino_p2p_agents_v1", JSON.stringify(agents));
     safeSetLocalStorage("casino_agents_v1", JSON.stringify(agents));
+    safeSetLocalStorage("p2p_agents", JSON.stringify(agents));
     window.dispatchEvent(new Event("storage"));
     window.dispatchEvent(new CustomEvent("p2p_state_updated"));
+
+    // Cloudflare D1 Async Sync
+    fetch("/api/admin/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agents }),
+    }).catch((e) => console.warn("D1 Agents Sync Notice:", e));
   } catch (e) {
     console.error("Error saving all P2P agents to database:", e);
   }
@@ -169,6 +251,13 @@ export async function saveChatMessageToDatabase(msg: any) {
     }
     safeSetLocalStorage("casino_chat_messages_v1", JSON.stringify(list.slice(-30)));
     window.dispatchEvent(new Event("storage"));
+
+    // Cloudflare D1 Async Sync
+    fetch("/api/chat/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId: msg.requestId || "global", message: msg }),
+    }).catch((e) => console.warn("D1 Chat Sync Notice:", e));
   } catch (e) {
     console.error("Error saving chat message to database:", e);
   }
@@ -192,6 +281,23 @@ export async function saveSystemConfigToDatabase(config: SystemConfig) {
     }
     window.dispatchEvent(new Event("storage"));
     window.dispatchEvent(new Event("system_config_updated"));
+
+    // Cloudflare D1 Async Sync
+    const masterWalletsRaw = localStorage.getItem("casino_master_crypto_wallets_v2");
+    const cryptoWallets = masterWalletsRaw ? JSON.parse(masterWalletsRaw) : undefined;
+
+    fetch("/api/admin/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        globalRtp: config.globalRtp,
+        rtpBias: config.rtpBias,
+        customWinRatio: config.customWinRatio,
+        forceLoseMode: config.forceLoseMode,
+        housePool: config.housePool,
+        cryptoWallets,
+      }),
+    }).catch((e) => console.warn("D1 Config Sync Notice:", e));
   } catch (e) {
     console.error("Error saving system config to database:", e);
   }

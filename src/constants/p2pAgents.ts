@@ -322,6 +322,13 @@ export function deleteP2PAgent(agentId: string): P2PAgent[] {
     localStorage.setItem("p2p_agents", JSON.stringify(filtered));
     localStorage.setItem("p2p_extended_agents_v1", JSON.stringify(filtered));
 
+    // Cloudflare D1 Async Sync
+    fetch("/api/admin/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agents: filtered }),
+    }).catch((e) => console.warn("D1 Agent Delete Sync Notice:", e));
+
     return filtered;
   } catch (e) {
     console.error("Error deleting P2P agent:", e);

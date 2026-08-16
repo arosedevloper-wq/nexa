@@ -416,7 +416,241 @@ async function handleApiRequest(request: Request, url: URL, env: Env): Promise<R
     });
   }
 
-  // 6. Admin RTP & Win/Loss Control
+  // 6. Admin System Config, RTP, Win/Loss, House Pool Sync (D1 Backed)
+  if (pathname === "/api/admin/config") {
+    if (method === "GET") {
+      let config = getServerRtpConfig();
+      let housePool = 1000000;
+      let cryptoWallets: any[] = [];
+
+      if (env.DB) {
+        try {
+          const rtpRow = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'rtp_config'").first<{ value: string }>();
+          if (rtpRow && rtpRow.value) {
+            try {
+              const parsed = JSON.parse(rtpRow.value);
+              setServerRtpConfig(parsed);
+              config = getServerRtpConfig();
+            } catch (e) {}
+          }
+          const poolRow = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'house_pool'").first<{ value: string }>();
+          if (poolRow && poolRow.value) {
+            housePool = parseFloat(poolRow.value) || 1000000;
+          }
+          const walletsRow = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'master_crypto_wallets'").first<{ value: string }>();
+          if (walletsRow && walletsRow.value) {
+            try {
+              cryptoWallets = JSON.parse(walletsRow.value);
+            } catch (e) {}
+          }
+        } catch (e) {
+          console.error("Error reading system_config from D1:", e);
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        rtpConfig: config,
+        housePool,
+        cryptoWallets,
+      });
+    }
+
+    if (method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as {
+        globalRtp?: number;
+        rtpBias?: "standard" | "loose" | "tight" | "rigged" | "custom";
+        customWinRatio?: number;
+        forceLoseMode?: boolean;
+        housePool?: number;
+        cryptoWallets?: any[];
+      };
+      const { globalRtp, rtpBias, customWinRatio, forceLoseMode, housePool, cryptoWallets } = body;
+
+      setServerRtpConfig({
+        ...(typeof globalRtp === "number" ? { globalRtp } : {}),
+        ...(rtpBias ? { rtpBias } : {}),
+        ...(typeof customWinRatio === "number" ? { customWinRatio } : {}),
+        ...(typeof forceLoseMode === "boolean" ? { forceLoseMode } : {}),
+      });
+
+      if (env.DB) {
+        try {
+          const rtpJson = JSON.stringify(getServerRtpConfig());
+          await env.DB.prepare(
+            `INSERT INTO system_config (key, value, updated_at) VALUES ('rtp_config', ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+          ).bind(rtpJson).run();
+
+          if (typeof housePool === "number") {
+            await env.DB.prepare(
+              `INSERT INTO system_config (key, value, updated_at) VALUES ('house_pool', ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+            ).bind(housePool.toString()).run();
+          }
+
+          if (cryptoWallets && Array.isArray(cryptoWallets)) {
+            await env.DB.prepare(
+              `INSERT INTO system_config (key, value, updated_at) VALUES ('master_crypto_wallets', ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+            ).bind(JSON.stringify(cryptoWallets)).run();
+          }
+        } catch (e) {
+          console.error("Error saving system_config to D1:", e);
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        message: "System configuration saved to Cloudflare D1.",
+        rtpConfig: getServerRtpConfig(),
+        housePool,
+      });
+    }
+  }
+
+  // 6b. Admin Agents Sync (D1 Backed)
+  if (pathname === "/api/admin/agents") {
+    if (method === "GET") {
+      let agents: any[] = [];
+      if (env.DB) {
+        try {
+          const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'p2p_agents'").first<{ value: string }>();
+          if (row && row.value) {
+            agents = JSON.parse(row.value);
+          }
+        } catch (e) {
+          console.error("Error fetching agents from D1:", e);
+        }
+      }
+      return jsonResponse({ success: true, agents });
+    }
+
+    if (method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { agents: any[] };
+      const { agents } = body;
+      if (!Array.isArray(agents)) {
+        return errorResponse("INVALID_AGENTS", "Agents payload must be an array.", 400);
+      }
+
+      if (env.DB) {
+        try {
+          await env.DB.prepare(
+            `INSERT INTO system_config (key, value, updated_at) VALUES ('p2p_agents', ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+          ).bind(JSON.stringify(agents)).run();
+        } catch (e) {
+          console.error("Error saving agents to D1:", e);
+          return errorResponse("DB_ERROR", "Failed to persist agents to D1", 500);
+        }
+      }
+
+      return jsonResponse({ success: true, agentsCount: agents.length });
+    }
+  }
+
+  // 6c. Admin Banking Requests Sync (D1 Backed)
+  if (pathname === "/api/admin/banking-requests") {
+    if (method === "GET") {
+      let requests: any[] = [];
+      if (env.DB) {
+        try {
+          const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'banking_requests'").first<{ value: string }>();
+          if (row && row.value) {
+            requests = JSON.parse(row.value);
+          }
+        } catch (e) {
+          console.error("Error fetching banking requests from D1:", e);
+        }
+      }
+      return jsonResponse({ success: true, requests });
+    }
+
+    if (method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { requests: any[] };
+      const { requests } = body;
+      if (!Array.isArray(requests)) {
+        return errorResponse("INVALID_PAYLOAD", "Requests payload must be an array.", 400);
+      }
+
+      if (env.DB) {
+        try {
+          await env.DB.prepare(
+            `INSERT INTO system_config (key, value, updated_at) VALUES ('banking_requests', ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+          ).bind(JSON.stringify(requests)).run();
+        } catch (e) {
+          console.error("Error saving banking requests to D1:", e);
+          return errorResponse("DB_ERROR", "Failed to persist banking requests to D1", 500);
+        }
+      }
+
+      return jsonResponse({ success: true, count: requests.length });
+    }
+  }
+
+  // 6d. Live Chat & P2P Chat Messages Sync (D1 Backed)
+  if (pathname === "/api/chat/messages") {
+    if (method === "GET") {
+      const requestId = url.searchParams.get("requestId") || "global";
+      let messages: any[] = [];
+      if (env.DB) {
+        try {
+          const key = `chat_${requestId}`;
+          const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = ?").bind(key).first<{ value: string }>();
+          if (row && row.value) {
+            messages = JSON.parse(row.value);
+          }
+        } catch (e) {
+          console.error("Error fetching chat messages from D1:", e);
+        }
+      }
+      return jsonResponse({ success: true, requestId, messages });
+    }
+
+    if (method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { requestId?: string; message: any; messages?: any[] };
+      const requestId = body.requestId || "global";
+      const key = `chat_${requestId}`;
+
+      if (env.DB) {
+        try {
+          let updatedList: any[] = [];
+          if (Array.isArray(body.messages)) {
+            updatedList = body.messages.slice(-50);
+          } else if (body.message && body.message.id) {
+            const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = ?").bind(key).first<{ value: string }>();
+            if (row && row.value) {
+              try {
+                updatedList = JSON.parse(row.value);
+              } catch (e) {}
+            }
+            const idx = updatedList.findIndex((m: any) => m.id === body.message.id);
+            if (idx >= 0) {
+              updatedList[idx] = body.message;
+            } else {
+              updatedList.push(body.message);
+            }
+            updatedList = updatedList.slice(-50);
+          }
+
+          await env.DB.prepare(
+            `INSERT INTO system_config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+          ).bind(key, JSON.stringify(updatedList)).run();
+
+          return jsonResponse({ success: true, requestId, count: updatedList.length });
+        } catch (e) {
+          console.error("Error saving chat message to D1:", e);
+          return errorResponse("DB_ERROR", "Failed to persist chat message to D1", 500);
+        }
+      }
+
+      return jsonResponse({ success: true, requestId });
+    }
+  }
+
+  // Legacy RTP endpoint alias
   if (pathname === "/api/admin/rtp") {
     if (method === "GET") {
       return jsonResponse({

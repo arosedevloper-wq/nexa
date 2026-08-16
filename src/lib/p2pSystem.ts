@@ -193,6 +193,13 @@ export function saveExtendedAgents(agents: ExtendedP2PAgent[]): void {
     safeSetLocalStorage("casino_agents_v1", JSON.stringify(agents));
     safeSetLocalStorage("p2p_agents", JSON.stringify(agents));
     broadcastFinancialStateUpdates();
+
+    // Cloudflare D1 Async Sync
+    fetch("/api/admin/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agents }),
+    }).catch((e) => console.warn("D1 Agents Sync Notice:", e));
   } catch (e) {
     console.error("Error saving agents:", e);
   }
@@ -251,6 +258,13 @@ export function saveAllP2PRequests(reqs: BankingRequest[]): void {
     safeSetLocalStorage("casino_banking_requests_v1", JSON.stringify(reqs));
     localStorage.removeItem("casino_banking_requests_v2");
     broadcastFinancialStateUpdates();
+
+    // Cloudflare D1 Async Sync
+    fetch("/api/admin/banking-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requests: reqs }),
+    }).catch((e) => console.warn("D1 Banking Requests Sync Notice:", e));
   } catch (e) {
     console.error("Error saving banking requests:", e);
   }

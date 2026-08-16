@@ -213,8 +213,61 @@ export default function AdminPanel({
   const [portfolioPage, setPortfolioPage] = useState<number>(1);
   const [editingGame, setEditingGame] = useState<any | null>(null);
 
-  // Sync event listeners for live activity streaming and portfolio updates
+  // Sync event listeners for live activity streaming, portfolio updates, and Cloudflare D1 real-time sync
   useEffect(() => {
+    // 1. Fetch fresh Cloudflare D1 state immediately on Admin mount
+    const fetchFreshD1State = async () => {
+      try {
+        const [configRes, agentsRes, reqsRes] = await Promise.all([
+          fetch("/api/admin/config").catch(() => null),
+          fetch("/api/admin/agents").catch(() => null),
+          fetch("/api/admin/banking-requests").catch(() => null),
+        ]);
+
+        if (configRes && configRes.ok) {
+          const cData = await configRes.json();
+          if (cData.success && cData.rtpConfig) {
+            if (typeof cData.rtpConfig.customWinRatio === "number" && onChangeCustomWinRatio) {
+              onChangeCustomWinRatio(cData.rtpConfig.customWinRatio);
+              setPendingWinRatio(cData.rtpConfig.customWinRatio);
+            }
+            if (typeof cData.rtpConfig.forceLoseMode === "boolean" && onChangeForceLoseMode) {
+              onChangeForceLoseMode(cData.rtpConfig.forceLoseMode);
+              setPendingForceLose(cData.rtpConfig.forceLoseMode);
+            }
+            if (cData.rtpConfig.rtpBias && onChangeRtpBias) {
+              onChangeRtpBias(cData.rtpConfig.rtpBias);
+            }
+            if (typeof cData.housePool === "number") {
+              onUpdateHousePool(cData.housePool);
+            }
+            if (Array.isArray(cData.cryptoWallets) && cData.cryptoWallets.length > 0) {
+              setAdminWallets(cData.cryptoWallets);
+            }
+          }
+        }
+
+        if (agentsRes && agentsRes.ok) {
+          const aData = await agentsRes.json();
+          if (aData.success && Array.isArray(aData.agents) && aData.agents.length > 0) {
+            setAgents(aData.agents);
+            setP2pAgents(aData.agents);
+          }
+        }
+
+        if (reqsRes && reqsRes.ok) {
+          const rData = await reqsRes.json();
+          if (rData.success && Array.isArray(rData.requests) && rData.requests.length > 0) {
+            setBankingRequests(rData.requests);
+          }
+        }
+      } catch (e) {
+        console.warn("Cloudflare D1 initial admin sync notice:", e);
+      }
+    };
+
+    fetchFreshD1State();
+
     const handleActivityLogged = () => {
       setPlayerActivitiesList(getPlayerActivities());
     };
