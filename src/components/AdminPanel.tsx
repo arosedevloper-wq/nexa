@@ -15,7 +15,19 @@ import { getBankingRequests } from "../constants/bankingRequests";
 import { getSubAdmins } from "../constants/subAdmins";
 import { getReferralEvents, getReferralSettings, processRefereeDepositReferral } from "../constants/referralData";
 import { casinoAudio } from "../lib/audioService";
-import { savePlayerToDatabase, saveBankingRequestToDatabase, saveP2PAgentToDatabase, saveAllP2PAgentsToDatabase, saveAllPlayersToDatabase, saveAllBankingRequestsToDatabase, saveSystemConfigToDatabase } from "../lib/db";
+import { 
+  savePlayerToDatabase, 
+  saveBankingRequestToDatabase, 
+  saveP2PAgentToDatabase, 
+  saveAllP2PAgentsToDatabase, 
+  saveAllPlayersToDatabase, 
+  saveAllBankingRequestsToDatabase, 
+  saveSystemConfigToDatabase, 
+  fetchCloudPlayersFromD1,
+  saveAllSubAdminsToDatabase,
+  fetchCloudSubAdminsFromD1,
+  saveReferralDataToDatabase
+} from "../lib/db";
 import { 
   getMasterCryptoWallets, 
   saveMasterCryptoWallets, 
@@ -168,7 +180,7 @@ export default function AdminPanel({
   const isAdmin = currentUser?.role === "admin" || (currentUser?.role !== "Sub-Admin" && currentUser?.role !== "agent" && currentUser?.role !== "player");
 
   const [pendingWinRatio, setPendingWinRatio] = useState<number>(() => {
-    return Math.max(1, Math.min(20, customWinRatio || 5));
+    return Math.max(1, Math.min(100, customWinRatio !== undefined ? customWinRatio : 5));
   });
   const [winRatioConfirmed, setWinRatioConfirmed] = useState<boolean>(false);
 
@@ -179,7 +191,7 @@ export default function AdminPanel({
 
   useEffect(() => {
     if (customWinRatio !== undefined) {
-      setPendingWinRatio(Math.max(1, Math.min(20, customWinRatio)));
+      setPendingWinRatio(Math.max(1, Math.min(100, customWinRatio)));
     }
   }, [customWinRatio]);
 
@@ -823,7 +835,7 @@ export default function AdminPanel({
 
     const updated = [newSubAdmin, ...subAdmins];
     setSubAdmins(updated);
-    localStorage.setItem("casino_sub_admins_v1", JSON.stringify(updated));
+    saveAllSubAdminsToDatabase(updated);
 
     setNewSubAdminName("");
     setNewSubAdminUsername("");
@@ -848,7 +860,7 @@ export default function AdminPanel({
     });
 
     setSubAdmins(updated);
-    localStorage.setItem("casino_sub_admins_v1", JSON.stringify(updated));
+    saveAllSubAdminsToDatabase(updated);
     setEditingSubAdmin(null);
 
     onAddAuditLog(`SECURITY: Super Admin updated Sub-Admin credentials/details for: ${editingSubAdmin.name} (${editingSubAdmin.username})`, "warning");
@@ -867,7 +879,7 @@ export default function AdminPanel({
       return sa;
     });
     setSubAdmins(updated);
-    localStorage.setItem("casino_sub_admins_v1", JSON.stringify(updated));
+    saveAllSubAdminsToDatabase(updated);
   };
 
   const handleDeleteSubAdmin = (username: string) => {
@@ -878,7 +890,7 @@ export default function AdminPanel({
     }
     const filtered = subAdmins.filter((sa) => sa.username !== username);
     setSubAdmins(filtered);
-    localStorage.setItem("casino_sub_admins_v1", JSON.stringify(filtered));
+    saveAllSubAdminsToDatabase(filtered);
     onAddAuditLog(`SECURITY: Super Admin deleted Sub-Admin node: ${username}`, "danger");
     addHarbingerLog("SUB_ADMIN_DELETED", `Deleted Sub-Admin node: ${username}`);
   };
@@ -899,7 +911,7 @@ export default function AdminPanel({
       return sa;
     });
     setSubAdmins(updated);
-    localStorage.setItem("casino_sub_admins_v1", JSON.stringify(updated));
+    saveAllSubAdminsToDatabase(updated);
   };
 
   const [pnlStats, setPnlStats] = useState({
@@ -1349,8 +1361,20 @@ export default function AdminPanel({
     };
 
     syncAllAdminData();
+    fetchCloudPlayersFromD1().then((cloudP) => {
+      if (Array.isArray(cloudP) && cloudP.length > 0) {
+        setRegisteredPlayers(cloudP);
+      }
+    }).catch(() => {});
+
+    fetchCloudSubAdminsFromD1().then((cloudSA) => {
+      if (Array.isArray(cloudSA) && cloudSA.length > 0) {
+        setSubAdmins(cloudSA);
+      }
+    }).catch(() => {});
+
     window.addEventListener("storage", syncAllAdminData);
-    const interval = setInterval(syncAllAdminData, 1500);
+    const interval = setInterval(syncAllAdminData, 2000);
 
     return () => {
       window.removeEventListener("storage", syncAllAdminData);
@@ -2261,12 +2285,18 @@ export default function AdminPanel({
                   <div className="flex items-center gap-2 text-xs text-slate-400 font-bold">
                     <span>Registered Accounts: <strong className="text-white">{registeredPlayers.length}</strong></span>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         casinoAudio.playClick();
-                        const stored = localStorage.getItem("registered_players_v1");
-                        if (stored) {
-                          setRegisteredPlayers(JSON.parse(stored));
-                          onAddAuditLog("SYSTEM: Refreshed registered player accounts database.", "info");
+                        const cloudPlayers = await fetchCloudPlayersFromD1();
+                        if (cloudPlayers && cloudPlayers.length > 0) {
+                          setRegisteredPlayers(cloudPlayers);
+                          onAddAuditLog("SYSTEM: Refreshed & synced registered player accounts with Cloudflare D1.", "success");
+                        } else {
+                          const stored = localStorage.getItem("registered_players_v1");
+                          if (stored) {
+                            setRegisteredPlayers(JSON.parse(stored));
+                            onAddAuditLog("SYSTEM: Refreshed registered player accounts from cache.", "info");
+                          }
                         }
                       }}
                       className="px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-900 text-slate-300 hover:text-white transition-all flex items-center gap-1 text-[10px] uppercase cursor-pointer"
@@ -2492,6 +2522,7 @@ export default function AdminPanel({
                                         const updated = registeredPlayers.filter(p => p.email.toLowerCase() !== rp.email.toLowerCase());
                                         setRegisteredPlayers(updated);
                                         localStorage.setItem("registered_players_v1", JSON.stringify(updated));
+                                        saveAllPlayersToDatabase(updated as any);
                                         onAddAuditLog(`SECURITY: Revoked and deleted player account: ${rp.email}`, "danger");
                                         window.dispatchEvent(new Event("storage"));
                                       }
@@ -3209,7 +3240,7 @@ export default function AdminPanel({
                           disabled={!isAdmin}
                           value={pendingWinRatio}
                           onChange={(e) => {
-                            const val = Math.max(1, Math.min(100, Number(e.target.value) || 95.0));
+                            const val = Math.max(1, Math.min(100, Number(e.target.value) || 5.0));
                             casinoAudio.playClick();
                             setPendingWinRatio(val);
                             setWinRatioConfirmed(false);
@@ -3218,14 +3249,14 @@ export default function AdminPanel({
                         />
                         <div className="flex justify-between text-[10px] text-slate-500 font-bold px-0.5">
                           <span>1% (Strict 99% Edge)</span>
-                          <span className="text-amber-400 font-extrabold">Casino Master Default: 95.0%</span>
+                          <span className="text-amber-400 font-extrabold">Casino Master Default: 5.0% (Win 5% / Lose 95%)</span>
                           <span>100% (Zero Edge)</span>
                         </div>
                       </div>
 
                       {/* Quick Presets for RTP */}
                       <div className="flex gap-1.5 pt-1">
-                        {[95.0, 97.0, 90.0, 75.0, 50.0, 20.0, 5.0].map((presetVal) => (
+                        {[5.0, 10.0, 20.0, 50.0, 75.0, 90.0, 95.0].map((presetVal) => (
                           <button
                             key={presetVal}
                             type="button"

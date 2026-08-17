@@ -8,10 +8,10 @@ export interface GameOutcome {
 
 // Global server configuration for RTP
 let serverRtpConfig = {
-  globalRtp: 95.0, // 95.0% baseline RTP
-  rtpBias: "standard" as "standard" | "loose" | "tight" | "rigged" | "custom",
-  customWinRatio: 50, // 50% default custom win ratio if active
-  forceLoseMode: false,
+  globalRtp: 5.0, // 5.0% default RTP (Win=5% / Lose=95%)
+  rtpBias: "custom" as "standard" | "loose" | "tight" | "rigged" | "custom",
+  customWinRatio: 5, // 5% default custom win ratio
+  forceLoseMode: true,
 };
 
 export function setServerRtpConfig(config: Partial<typeof serverRtpConfig>) {

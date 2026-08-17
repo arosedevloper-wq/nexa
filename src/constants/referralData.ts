@@ -1,3 +1,5 @@
+import { saveReferralDataToDatabase } from "../lib/db";
+
 export function getReferralEvents(): any[] {
   let storedList: any[] = [];
   try {
@@ -101,6 +103,7 @@ export function processRefereeDepositReferral(refereeEmail: string, depositAmoun
     events[targetEventIndex] = targetEvent;
 
     localStorage.setItem("referral_events_v1", JSON.stringify(events));
+    saveReferralDataToDatabase(refSettings, events);
 
     // Update registered players list
     const storedPlayers = localStorage.getItem("registered_players_v1");

@@ -589,6 +589,115 @@ async function handleApiRequest(request: Request, url: URL, env: Env): Promise<R
     }
   }
 
+  // 6c-2. Admin & Global Players Sync (D1 Backed)
+  if (pathname === "/api/admin/players" || pathname === "/api/players/register") {
+    if (method === "GET") {
+      let playersList: any[] = [];
+      if (env.DB) {
+        try {
+          const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'registered_players_v1'").first<{ value: string }>();
+          if (row && row.value) {
+            playersList = JSON.parse(row.value);
+          }
+
+          // Also pull from players table if any players exist there
+          const dbPlayers = await env.DB.prepare("SELECT * FROM players").all<any>();
+          if (dbPlayers && Array.isArray(dbPlayers.results)) {
+            const emailMap = new Map(playersList.map((p: any) => [p.email.toLowerCase(), p]));
+            for (const dp of dbPlayers.results) {
+              const emailKey = (dp.email || "").toLowerCase();
+              if (emailMap.has(emailKey)) {
+                const existing = emailMap.get(emailKey);
+                existing.chips = typeof dp.chips === "number" ? dp.chips : existing.chips;
+                existing.bonusBalance = typeof dp.bonus_balance === "number" ? dp.bonus_balance : existing.bonusBalance;
+              } else {
+                playersList.push({
+                  name: dp.name || "Player",
+                  email: dp.email,
+                  phoneNumber: dp.phone_number || "",
+                  chips: dp.chips || 0,
+                  bonusBalance: dp.bonus_balance || 200,
+                  vipLevel: "VIP Bronze",
+                  status: "active",
+                  registeredAt: dp.created_at || new Date().toISOString()
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching players from D1:", e);
+        }
+      }
+      return jsonResponse({ success: true, players: playersList });
+    }
+
+    if (method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { player?: any; players?: any[] };
+      let incomingPlayers = body.players || (body.player ? [body.player] : []);
+
+      if (!Array.isArray(incomingPlayers) || incomingPlayers.length === 0) {
+        return errorResponse("INVALID_PAYLOAD", "Players payload missing.", 400);
+      }
+
+      if (env.DB) {
+        try {
+          let currentList: any[] = [];
+          const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'registered_players_v1'").first<{ value: string }>();
+          if (row && row.value) {
+            try {
+              currentList = JSON.parse(row.value);
+            } catch (e) {}
+          }
+
+          for (const newP of incomingPlayers) {
+            if (!newP || !newP.email) continue;
+            const idx = currentList.findIndex((p: any) => p && p.email && p.email.toLowerCase() === newP.email.toLowerCase());
+            if (idx >= 0) {
+              currentList[idx] = { ...currentList[idx], ...newP };
+            } else {
+              currentList.unshift(newP);
+            }
+
+            // Also upsert into players table
+            const playerId = `player_${(newP.phoneNumber || newP.email || "").replace(/\D/g, "") || Date.now()}`;
+            await env.DB.prepare(
+              `INSERT INTO players (id, email, name, phone_number, role, chips, bonus_balance, peak_chips, loan_count, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(email) DO UPDATE SET 
+                 name = excluded.name, 
+                 phone_number = excluded.phone_number, 
+                 chips = excluded.chips, 
+                 bonus_balance = excluded.bonus_balance, 
+                 updated_at = CURRENT_TIMESTAMP`
+            ).bind(
+              playerId,
+              newP.email,
+              newP.name || "Player",
+              newP.phoneNumber || "",
+              newP.role || "player",
+              typeof newP.chips === "number" ? newP.chips : 0,
+              typeof newP.bonusBalance === "number" ? newP.bonusBalance : 200,
+              typeof newP.peakChips === "number" ? newP.peakChips : (newP.chips || 0),
+              typeof newP.loanCount === "number" ? newP.loanCount : 0
+            ).run().catch((err) => console.warn("Player table upsert notice:", err));
+          }
+
+          await env.DB.prepare(
+            `INSERT INTO system_config (key, value, updated_at) VALUES ('registered_players_v1', ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+          ).bind(JSON.stringify(currentList)).run();
+
+          return jsonResponse({ success: true, count: currentList.length });
+        } catch (e) {
+          console.error("Error saving players to D1:", e);
+          return errorResponse("DB_ERROR", "Failed to persist players to D1", 500);
+        }
+      }
+
+      return jsonResponse({ success: true, count: incomingPlayers.length });
+    }
+  }
+
   // 6d. Live Chat & P2P Chat Messages Sync (D1 Backed)
   if (pathname === "/api/chat/messages") {
     if (method === "GET") {
@@ -647,6 +756,202 @@ async function handleApiRequest(request: Request, url: URL, env: Env): Promise<R
       }
 
       return jsonResponse({ success: true, requestId });
+    }
+  }
+
+  // 6e. Admin Sub-Admins Sync (D1 Backed)
+  if (pathname === "/api/admin/sub-admins") {
+    if (method === "GET") {
+      let subAdminsList: any[] = [];
+      if (env.DB) {
+        try {
+          const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'sub_admins_v1'").first<{ value: string }>();
+          if (row && row.value) {
+            subAdminsList = JSON.parse(row.value);
+          }
+        } catch (e) {
+          console.error("Error fetching sub-admins from D1:", e);
+        }
+      }
+      return jsonResponse({ success: true, subAdmins: subAdminsList });
+    }
+
+    if (method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { subAdmins?: any[]; subAdmin?: any };
+      const incoming = body.subAdmins || (body.subAdmin ? [body.subAdmin] : []);
+
+      if (!Array.isArray(incoming) || incoming.length === 0) {
+        return errorResponse("INVALID_PAYLOAD", "Sub-Admins payload missing.", 400);
+      }
+
+      if (env.DB) {
+        try {
+          let currentList: any[] = [];
+          const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'sub_admins_v1'").first<{ value: string }>();
+          if (row && row.value) {
+            try {
+              currentList = JSON.parse(row.value);
+            } catch (e) {}
+          }
+
+          for (const newSa of incoming) {
+            if (!newSa || !newSa.username) continue;
+            const idx = currentList.findIndex((sa: any) => sa && sa.username && sa.username.toLowerCase() === newSa.username.toLowerCase());
+            if (idx >= 0) {
+              currentList[idx] = { ...currentList[idx], ...newSa };
+            } else {
+              currentList.push(newSa);
+            }
+          }
+
+          await env.DB.prepare(
+            `INSERT INTO system_config (key, value, updated_at) VALUES ('sub_admins_v1', ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+          ).bind(JSON.stringify(currentList)).run();
+
+          return jsonResponse({ success: true, count: currentList.length });
+        } catch (e) {
+          console.error("Error saving sub-admins to D1:", e);
+          return errorResponse("DB_ERROR", "Failed to persist sub-admins to D1", 500);
+        }
+      }
+
+      return jsonResponse({ success: true, count: incoming.length });
+    }
+  }
+
+  // 6f. Admin Master Crypto Wallets Sync (D1 Backed)
+  if (pathname === "/api/admin/wallets") {
+    if (method === "GET") {
+      let walletsList: any[] = [];
+      if (env.DB) {
+        try {
+          const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'master_crypto_wallets'").first<{ value: string }>();
+          if (row && row.value) {
+            walletsList = JSON.parse(row.value);
+          }
+        } catch (e) {
+          console.error("Error fetching crypto wallets from D1:", e);
+        }
+      }
+      return jsonResponse({ success: true, wallets: walletsList });
+    }
+
+    if (method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { wallets?: any[] };
+      const incoming = body.wallets || [];
+
+      if (!Array.isArray(incoming)) {
+        return errorResponse("INVALID_PAYLOAD", "Wallets payload must be an array.", 400);
+      }
+
+      if (env.DB) {
+        try {
+          await env.DB.prepare(
+            `INSERT INTO system_config (key, value, updated_at) VALUES ('master_crypto_wallets', ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+          ).bind(JSON.stringify(incoming)).run();
+
+          return jsonResponse({ success: true, count: incoming.length });
+        } catch (e) {
+          console.error("Error saving crypto wallets to D1:", e);
+          return errorResponse("DB_ERROR", "Failed to persist crypto wallets to D1", 500);
+        }
+      }
+
+      return jsonResponse({ success: true, count: incoming.length });
+    }
+  }
+
+  // 6g. Admin Referral Settings & Events Sync (D1 Backed)
+  if (pathname === "/api/admin/referrals") {
+    if (method === "GET") {
+      let settings: any = null;
+      let events: any[] = [];
+      if (env.DB) {
+        try {
+          const sRow = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'referral_settings_v1'").first<{ value: string }>();
+          if (sRow && sRow.value) settings = JSON.parse(sRow.value);
+          const eRow = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'referral_events_v1'").first<{ value: string }>();
+          if (eRow && eRow.value) events = JSON.parse(eRow.value);
+        } catch (e) {
+          console.error("Error fetching referrals from D1:", e);
+        }
+      }
+      return jsonResponse({ success: true, settings, events });
+    }
+
+    if (method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { settings?: any; events?: any[] };
+      if (env.DB) {
+        try {
+          if (body.settings) {
+            await env.DB.prepare(
+              `INSERT INTO system_config (key, value, updated_at) VALUES ('referral_settings_v1', ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+            ).bind(JSON.stringify(body.settings)).run();
+          }
+          if (Array.isArray(body.events)) {
+            await env.DB.prepare(
+              `INSERT INTO system_config (key, value, updated_at) VALUES ('referral_events_v1', ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+            ).bind(JSON.stringify(body.events)).run();
+          }
+          return jsonResponse({ success: true });
+        } catch (e) {
+          console.error("Error saving referrals to D1:", e);
+          return errorResponse("DB_ERROR", "Failed to persist referrals to D1", 500);
+        }
+      }
+      return jsonResponse({ success: true });
+    }
+  }
+
+  // 6h. Admin Audit Logs Sync (D1 Backed)
+  if (pathname === "/api/admin/audit-logs") {
+    if (method === "GET") {
+      let logs: any[] = [];
+      if (env.DB) {
+        try {
+          const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'admin_audit_logs'").first<{ value: string }>();
+          if (row && row.value) {
+            logs = JSON.parse(row.value);
+          }
+        } catch (e) {
+          console.error("Error fetching audit logs from D1:", e);
+        }
+      }
+      return jsonResponse({ success: true, logs });
+    }
+
+    if (method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { log?: any; logs?: any[] };
+      if (env.DB) {
+        try {
+          let list: any[] = [];
+          if (Array.isArray(body.logs)) {
+            list = body.logs.slice(0, 100);
+          } else if (body.log) {
+            const row = await env.DB.prepare("SELECT value FROM system_config WHERE key = 'admin_audit_logs'").first<{ value: string }>();
+            if (row && row.value) {
+              try { list = JSON.parse(row.value); } catch (e) {}
+            }
+            list.unshift(body.log);
+            list = list.slice(0, 100);
+          }
+
+          await env.DB.prepare(
+            `INSERT INTO system_config (key, value, updated_at) VALUES ('admin_audit_logs', ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+          ).bind(JSON.stringify(list)).run();
+
+          return jsonResponse({ success: true, count: list.length });
+        } catch (e) {
+          console.error("Error saving audit logs to D1:", e);
+          return errorResponse("DB_ERROR", "Failed to persist audit logs to D1", 500);
+        }
+      }
+      return jsonResponse({ success: true });
     }
   }
 

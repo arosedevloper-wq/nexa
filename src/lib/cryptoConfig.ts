@@ -1,3 +1,5 @@
+import { saveAllWalletsToDatabase } from "./db";
+
 export interface MasterCryptoWallet {
   id: string; // e.g. "BINANCE_PAY", "USDT_TRC20"
   symbol: string; // "Binance Pay", "USDT", "BTC", etc.
@@ -146,6 +148,7 @@ export function saveMasterCryptoWallets(wallets: MasterCryptoWallet[]) {
     localStorage.setItem("casino_master_crypto_wallets_v2", JSON.stringify(wallets));
     window.dispatchEvent(new Event("storage"));
     window.dispatchEvent(new Event("crypto_config_updated"));
+    saveAllWalletsToDatabase(wallets);
   } catch (err) {
     console.error("Error saving master crypto wallets:", err);
   }

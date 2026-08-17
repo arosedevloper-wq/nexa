@@ -2239,17 +2239,18 @@ export function generateExpandedCatalog(count: number = 1000): GameConfig[] {
 export const ALL_NEXASPIN_GAMES = generateExpandedCatalog(1000);
 
 // Global RTP State Management
-export const DEFAULT_GLOBAL_RTP = 95.0;
+export const DEFAULT_GLOBAL_RTP = 5.0; // 5.0% Default Win Ratio (95.0% House Edge)
+export const BASELINE_GLOBAL_RTP = 95.0; // Baseline reference RTP
 
 /**
- * Retrieve the current Master Casino Global Win Ratio / RTP (defaults to 95.0%)
+ * Retrieve the current Master Casino Global Win Ratio / RTP (defaults to 5.0%)
  */
 export function getGlobalRtp(): number {
   if (typeof window === "undefined") return DEFAULT_GLOBAL_RTP;
   const stored = localStorage.getItem("casino_global_rtp") || localStorage.getItem("casino_custom_win_ratio") || localStorage.getItem("casino_global_win_ratio");
   if (stored) {
     const parsed = parseFloat(stored);
-    if (!isNaN(parsed) && parsed > 0 && parsed <= 200) {
+    if (!isNaN(parsed) && parsed > 0 && parsed <= 100) {
       return parsed;
     }
   }
@@ -2261,7 +2262,7 @@ export function getGlobalRtp(): number {
  */
 export function setGlobalRtp(val: number): void {
   if (typeof window === "undefined") return;
-  const sanitized = Math.max(1, Math.min(200, val));
+  const sanitized = Math.max(1, Math.min(100, val));
   localStorage.setItem("casino_global_rtp", sanitized.toString());
   localStorage.setItem("casino_custom_win_ratio", sanitized.toString());
   localStorage.setItem("casino_global_win_ratio", sanitized.toString());
@@ -2279,7 +2280,7 @@ export function getEffectiveRtp(gameConfigRtp?: string | number, overrideGlobalR
   const currentGlobal = overrideGlobalRtp !== undefined ? overrideGlobalRtp : getGlobalRtp();
   if (gameConfigRtp) {
     const gameBase = typeof gameConfigRtp === "number" ? gameConfigRtp : (parseFloat(String(gameConfigRtp)) || 95.0);
-    return +(gameBase * (currentGlobal / DEFAULT_GLOBAL_RTP)).toFixed(2);
+    return +(gameBase * (currentGlobal / BASELINE_GLOBAL_RTP)).toFixed(2);
   }
   return currentGlobal;
 }

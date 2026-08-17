@@ -184,15 +184,21 @@ app.post(
 // 5. GLOBAL ADMIN RTP, CONFIG, AGENTS, BANKING, CHAT API
 // -------------------------------------------------------------
 let inMemoryConfig: any = {
-  globalRtp: 95.0,
-  rtpBias: "standard",
-  customWinRatio: 0.45,
-  forceLoseMode: false,
-  housePool: 1000000,
+  globalRtp: 5.0,
+  rtpBias: "custom",
+  customWinRatio: 5,
+  forceLoseMode: true,
+  housePool: 5000000,
   cryptoWallets: []
 };
 let inMemoryAgents: any[] = [];
 let inMemoryBankingRequests: any[] = [];
+let inMemoryPlayers: any[] = [];
+let inMemorySubAdmins: any[] = [];
+let inMemoryWallets: any[] = [];
+let inMemoryReferralSettings: any = { isEnabled: true, referrerBonus: 2.5, refereeBonus: 0, autoPayout: true };
+let inMemoryReferralEvents: any[] = [];
+let inMemoryAuditLogs: any[] = [];
 let inMemoryChats: Record<string, any[]> = {};
 
 app.get("/api/admin/config", (req, res) => {
@@ -257,6 +263,89 @@ app.post("/api/admin/banking-requests", (req, res) => {
     return res.json({ success: true, count: inMemoryBankingRequests.length });
   }
   return res.status(400).json({ error: "INVALID_REQUESTS" });
+});
+
+app.get("/api/admin/players", (req, res) => {
+  res.json({ success: true, players: inMemoryPlayers });
+});
+
+app.post("/api/admin/players", (req, res) => {
+  const { player, players } = req.body;
+  const list = players || (player ? [player] : []);
+  if (Array.isArray(list)) {
+    for (const p of list) {
+      if (!p || !p.email) continue;
+      const idx = inMemoryPlayers.findIndex(x => x.email.toLowerCase() === p.email.toLowerCase());
+      if (idx >= 0) {
+        inMemoryPlayers[idx] = { ...inMemoryPlayers[idx], ...p };
+      } else {
+        inMemoryPlayers.unshift(p);
+      }
+    }
+    return res.json({ success: true, count: inMemoryPlayers.length });
+  }
+  return res.status(400).json({ error: "INVALID_PLAYERS" });
+});
+
+app.get("/api/admin/sub-admins", (req, res) => {
+  res.json({ success: true, subAdmins: inMemorySubAdmins });
+});
+
+app.post("/api/admin/sub-admins", (req, res) => {
+  const { subAdmins, subAdmin } = req.body;
+  const list = subAdmins || (subAdmin ? [subAdmin] : []);
+  if (Array.isArray(list)) {
+    for (const sa of list) {
+      if (!sa || !sa.username) continue;
+      const idx = inMemorySubAdmins.findIndex(x => x.username.toLowerCase() === sa.username.toLowerCase());
+      if (idx >= 0) {
+        inMemorySubAdmins[idx] = { ...inMemorySubAdmins[idx], ...sa };
+      } else {
+        inMemorySubAdmins.push(sa);
+      }
+    }
+    return res.json({ success: true, count: inMemorySubAdmins.length });
+  }
+  return res.status(400).json({ error: "INVALID_SUB_ADMINS" });
+});
+
+app.get("/api/admin/wallets", (req, res) => {
+  res.json({ success: true, wallets: inMemoryWallets });
+});
+
+app.post("/api/admin/wallets", (req, res) => {
+  const { wallets } = req.body;
+  if (Array.isArray(wallets)) {
+    inMemoryWallets = wallets;
+    return res.json({ success: true, count: inMemoryWallets.length });
+  }
+  return res.status(400).json({ error: "INVALID_WALLETS" });
+});
+
+app.get("/api/admin/referrals", (req, res) => {
+  res.json({ success: true, settings: inMemoryReferralSettings, events: inMemoryReferralEvents });
+});
+
+app.post("/api/admin/referrals", (req, res) => {
+  const { settings, events } = req.body;
+  if (settings) inMemoryReferralSettings = settings;
+  if (Array.isArray(events)) inMemoryReferralEvents = events;
+  res.json({ success: true });
+});
+
+app.get("/api/admin/audit-logs", (req, res) => {
+  res.json({ success: true, logs: inMemoryAuditLogs });
+});
+
+app.post("/api/admin/audit-logs", (req, res) => {
+  const { log, logs } = req.body;
+  if (Array.isArray(logs)) {
+    inMemoryAuditLogs = logs.slice(0, 100);
+  } else if (log) {
+    inMemoryAuditLogs.unshift(log);
+    inMemoryAuditLogs = inMemoryAuditLogs.slice(0, 100);
+  }
+  res.json({ success: true, count: inMemoryAuditLogs.length });
 });
 
 app.get("/api/chat/messages", (req, res) => {

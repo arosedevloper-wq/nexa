@@ -3,7 +3,7 @@ import { Play, ShieldCheck, RefreshCw, AlertTriangle, Sparkles, Coins, ArrowRigh
 import { Card } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 import { casinoAudio } from "../lib/audioService";
-import { evaluateLiveGameRound } from "../constants/liveGameConfig";
+import { evaluateLiveGameRound, getUserWinRatio } from "../constants/liveGameConfig";
 
 interface BlackjackGameProps {
   chips: number;
@@ -110,7 +110,7 @@ export default function BlackjackGame({ chips, onWin, onLose, onCommentaryReques
         }
       }
     } else if (rtpBias === "custom") {
-      const customRatio = Number(localStorage.getItem("casino_custom_win_ratio")) || 50;
+      const customRatio = Math.round(getUserWinRatio() * 100);
       const isPlayerWinner = Math.random() * 100 < customRatio;
 
       if (isPlayer) {

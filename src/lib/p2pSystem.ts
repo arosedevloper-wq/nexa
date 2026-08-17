@@ -127,6 +127,13 @@ export function addAdminAuditLog(
     // 3. P2P Audit Logs
     addP2PAuditLog(message, type);
 
+    // 4. Cloudflare D1 Async Sync
+    fetch("/api/admin/audit-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ log: auditEntry }),
+    }).catch((e) => console.warn("D1 Audit Log Sync Notice:", e));
+
     broadcastFinancialStateUpdates();
   } catch (e) {
     console.error("Error logging admin audit:", e);
@@ -147,6 +154,13 @@ export function setP2PGlobalKillSwitch(active: boolean): void {
   try {
     localStorage.setItem("p2p_global_killswitch", active ? "true" : "false");
     broadcastFinancialStateUpdates();
+
+    // Sync to Cloudflare D1
+    fetch("/api/admin/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p2pKillswitch: active }),
+    }).catch((e) => console.warn("D1 Killswitch Sync Notice:", e));
   } catch (e) {
     console.error("Error setting P2P killswitch:", e);
   }
@@ -243,6 +257,13 @@ export function saveExtendedSubAdmins(subAdmins: ExtendedSubAdmin[]): void {
   try {
     safeSetLocalStorage("casino_sub_admins_v1", JSON.stringify(subAdmins));
     broadcastFinancialStateUpdates();
+
+    // Cloudflare D1 Async Sync
+    fetch("/api/admin/sub-admins", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subAdmins }),
+    }).catch((e) => console.warn("D1 SubAdmins Sync Notice:", e));
   } catch (e) {
     console.error("Error saving sub-admins:", e);
   }

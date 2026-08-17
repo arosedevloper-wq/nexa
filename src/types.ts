@@ -109,12 +109,12 @@ export interface ChatMessage {
 
 export interface SystemConfig {
   id: string; // "main"
-  houseWinRate: number; // e.g. 0.05 for 5% house win-rate logic
+  houseWinRate: number; // e.g. 0.95 for 95% house win-rate / lose logic
   housePool: number; // e.g. 5000000
-  globalRtp: number; // Master Casino Global RTP percentage (defaults to 95.0%)
+  globalRtp: number; // Master Casino Global RTP percentage (defaults to 5.0%)
   globalWinRatio?: number; // Alias for globalRtp
   rtpBias: "standard" | "loose" | "tight" | "rigged" | "custom";
-  customWinRatio: number; // e.g. 5 for 5%
+  customWinRatio: number; // e.g. 5 for 5% win (95% lose)
   forceLoseMode?: boolean; // Default true (ON)
   maxCrashMultiplier: number;
   progressiveJackpot: number;

@@ -9,7 +9,8 @@ import {
   TransactionChatMessage, 
   getTransactionChatMessages, 
   sendTransactionChatMessage,
-  compressImageBase64
+  compressImageBase64,
+  fetchCloudChatMessages
 } from "../lib/transactionChat";
 import { BankingRequest } from "../types";
 
@@ -57,6 +58,12 @@ export default function TransactionChatBox({
     if (!requestId) return;
     const msgs = getTransactionChatMessages(requestId);
     setMessages(msgs);
+    // Cloudflare D1 real-time sync across devices
+    fetchCloudChatMessages(requestId).then((cloudMsgs) => {
+      if (cloudMsgs && cloudMsgs.length > 0) {
+        setMessages(cloudMsgs);
+      }
+    }).catch(() => {});
   };
 
   useEffect(() => {

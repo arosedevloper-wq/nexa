@@ -5,17 +5,17 @@
  */
 
 export interface LiveGameConfig {
-  houseEdge: number;      // 0.05 (5% House Edge)
-  userWinRatio: number;   // 0.45 (45% User Winning Ratio)
-  rtpPercentage: number;  // 95.0% Return To Player
+  houseEdge: number;      // 0.95 (95% House Edge)
+  userWinRatio: number;   // 0.05 (5% User Winning Ratio)
+  rtpPercentage: number;  // 5.0% Return To Player
   isEnforced: boolean;
   lastUpdated: string;
 }
 
 export const GLOBAL_LIVE_GAME_CONFIG: LiveGameConfig = {
-  houseEdge: 0.05,
-  userWinRatio: 0.45,
-  rtpPercentage: 95.0,
+  houseEdge: 0.95,
+  userWinRatio: 0.05,
+  rtpPercentage: 5.0,
   isEnforced: true,
   lastUpdated: new Date().toISOString(),
 };
@@ -49,8 +49,8 @@ export function getUserWinRatio(customRatio?: number, rtpBias?: string): number 
   // Check RTP Bias setting override
   const activeBias = rtpBias || (typeof window !== "undefined" ? localStorage.getItem("casino_rtp_bias") : null);
   if (activeBias === "rigged") return 0.01;
-  if (activeBias === "tight") return 0.15;
-  if (activeBias === "loose") return 0.95;
+  if (activeBias === "tight") return 0.02;
+  if (activeBias === "loose") return 0.10;
 
   if (customRatio !== undefined && customRatio > 0) {
     const val = customRatio > 1 ? customRatio / 100 : customRatio;
@@ -58,18 +58,18 @@ export function getUserWinRatio(customRatio?: number, rtpBias?: string): number 
   }
 
   if (typeof window !== "undefined") {
-    const cachedGlobalRtp = localStorage.getItem("casino_global_rtp");
-    if (cachedGlobalRtp) {
-      const parsed = Number(cachedGlobalRtp);
-      if (!isNaN(parsed) && parsed >= 0 && parsed <= 200) {
+    const cachedRatio = localStorage.getItem("casino_custom_win_ratio");
+    if (cachedRatio) {
+      const parsed = Number(cachedRatio);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
         return Math.max(0, Math.min(1.0, parsed > 1 ? parsed / 100 : parsed));
       }
     }
 
-    const cachedRatio = localStorage.getItem("casino_custom_win_ratio");
-    if (cachedRatio) {
-      const parsed = Number(cachedRatio);
-      if (!isNaN(parsed) && parsed >= 0 && parsed <= 200) {
+    const cachedGlobalRtp = localStorage.getItem("casino_global_rtp");
+    if (cachedGlobalRtp) {
+      const parsed = Number(cachedGlobalRtp);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
         return Math.max(0, Math.min(1.0, parsed > 1 ? parsed / 100 : parsed));
       }
     }
@@ -78,19 +78,19 @@ export function getUserWinRatio(customRatio?: number, rtpBias?: string): number 
     if (cachedConfig) {
       try {
         const cfg = JSON.parse(cachedConfig);
-        if (cfg.globalRtp !== undefined) {
-          const val = Number(cfg.globalRtp);
-          return Math.max(0, Math.min(1.0, val > 1 ? val / 100 : val));
-        }
         if (cfg.customWinRatio !== undefined) {
           const val = Number(cfg.customWinRatio);
+          return Math.max(0, Math.min(1.0, val > 1 ? val / 100 : val));
+        }
+        if (cfg.globalRtp !== undefined) {
+          const val = Number(cfg.globalRtp);
           return Math.max(0, Math.min(1.0, val > 1 ? val / 100 : val));
         }
       } catch (e) {}
     }
   }
 
-  return 0.45; // Default 45% win ratio
+  return 0.05; // Default 5% win ratio (95% lose ratio)
 }
 
 /**

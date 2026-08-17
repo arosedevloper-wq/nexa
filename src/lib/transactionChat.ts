@@ -483,6 +483,32 @@ export function getUnreadCountForRequest(requestId: string, senderRoleToCount: "
 }
 
 /**
+ * Fetch latest chat messages from Cloudflare D1 and merge with local store
+ */
+export async function fetchCloudChatMessages(requestId: string): Promise<TransactionChatMessage[]> {
+  if (!requestId) return [];
+  try {
+    const res = await fetch(`/api/chat/messages?requestId=${encodeURIComponent(requestId)}`);
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      if (data.success && Array.isArray(data.messages) && data.messages.length > 0) {
+        const local = getTransactionChatMessages(requestId);
+        const map = new Map<string, TransactionChatMessage>();
+        local.forEach((m) => { if (m.id) map.set(m.id, m); });
+        data.messages.forEach((m: any) => { if (m.id) map.set(m.id, { ...map.get(m.id), ...m }); });
+        const merged = Array.from(map.values()).slice(-25);
+        safeSetLocalStorage(`casino_tx_chat_${requestId}`, JSON.stringify(merged));
+        window.dispatchEvent(new Event("casino_tx_chat_updated"));
+        return merged;
+      }
+    }
+  } catch (e) {
+    // Offline fallback
+  }
+  return getTransactionChatMessages(requestId);
+}
+
+/**
  * Add a system status message to the chat (e.g. "Sub-Admin Verified TXID", "Deposit Approved")
  */
 export function addSystemTxChatMessage(requestId: string, text: string) {

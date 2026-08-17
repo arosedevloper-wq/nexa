@@ -53,6 +53,7 @@ import { getBankingRequests } from "./constants/bankingRequests";
 import { getSubAdmins } from "./constants/subAdmins";
 import { getReferralEvents } from "./constants/referralData";
 import { initDatabaseDefaults, setupDatabaseListeners, savePlayerToDatabase, saveSystemConfigToDatabase } from "./lib/db";
+import { setGlobalRtp } from "./data/gameData";
 import AgentDashboard from "./components/AgentDashboard";
 import { logPlayerActivity } from "./lib/activityTracker";
 import { recordGameStats } from "./lib/portfolioManager";
@@ -367,12 +368,12 @@ export default function App() {
     }
     return {
       id: "main",
-      globalRtp: 95.0,
-      globalWinRatio: 95.0,
+      globalRtp: 5.0,
+      globalWinRatio: 5.0,
       houseWinRate: 0.95,
       housePool: 5000000,
       rtpBias: "custom",
-      customWinRatio: 95,
+      customWinRatio: 5,
       forceLoseMode: true,
       maxCrashMultiplier: 50,
       progressiveJackpot: 3450281.80,
@@ -393,7 +394,7 @@ export default function App() {
       const val = Number(cached);
       if (!isNaN(val) && val >= 1 && val <= 100) return val;
     }
-    return 95;
+    return 5;
   });
   const [forceLoseMode, setForceLoseMode] = useState<boolean>(() => {
     const cached = localStorage.getItem("casino_force_lose_mode");
@@ -442,7 +443,9 @@ export default function App() {
     localStorage.setItem("casino_rtp_bias", rtpBias);
     localStorage.setItem("casino_custom_win_ratio", String(customWinRatio));
     localStorage.setItem("casino_global_rtp", String(customWinRatio));
+    localStorage.setItem("casino_global_win_ratio", String(customWinRatio));
     localStorage.setItem("casino_force_lose_mode", String(forceLoseMode));
+    setGlobalRtp(customWinRatio);
     const updated: SystemConfig = {
       ...systemConfig,
       globalRtp: customWinRatio,
