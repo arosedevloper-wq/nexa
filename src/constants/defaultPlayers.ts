@@ -101,6 +101,37 @@ export const DEFAULT_PLAYERS: RegisteredPlayer[] = [
   }
 ];
 
+export function getRevokedPlayerEmails(): Set<string> {
+  try {
+    const stored = localStorage.getItem("revoked_players_v1");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return new Set(parsed.filter(e => typeof e === "string").map(e => e.toLowerCase().trim()));
+      }
+    }
+  } catch (e) {}
+  return new Set<string>();
+}
+
+export function recordRevokedPlayerEmail(email: string) {
+  if (!email || typeof email !== "string") return;
+  try {
+    const set = getRevokedPlayerEmails();
+    set.add(email.toLowerCase().trim());
+    localStorage.setItem("revoked_players_v1", JSON.stringify(Array.from(set)));
+  } catch (e) {}
+}
+
+export function clearRevokedPlayerEmail(email: string) {
+  if (!email || typeof email !== "string") return;
+  try {
+    const set = getRevokedPlayerEmails();
+    set.delete(email.toLowerCase().trim());
+    localStorage.setItem("revoked_players_v1", JSON.stringify(Array.from(set)));
+  } catch (e) {}
+}
+
 export function getRegisteredPlayers(): RegisteredPlayer[] {
   let storedList: RegisteredPlayer[] = [];
   try {
@@ -115,17 +146,30 @@ export function getRegisteredPlayers(): RegisteredPlayer[] {
     console.error("Error parsing registered_players_v1:", e);
   }
 
+  const revokedEmails = getRevokedPlayerEmails();
+
+  // Filter out any explicitly revoked players
+  storedList = storedList.filter(
+    (p) => p && typeof p.email === "string" && !revokedEmails.has(p.email.toLowerCase().trim())
+  );
+
   const existingEmails = new Set(
     storedList
       .filter((p) => p && typeof p.email === "string")
       .map((p) => p.email.toLowerCase().trim())
   );
+
+  // Exclude defaults if they already exist or have been revoked by Admin
   const missingDefaults = DEFAULT_PLAYERS.filter(
-    (def) => def && typeof def.email === "string" && !existingEmails.has(def.email.toLowerCase().trim())
+    (def) =>
+      def &&
+      typeof def.email === "string" &&
+      !existingEmails.has(def.email.toLowerCase().trim()) &&
+      !revokedEmails.has(def.email.toLowerCase().trim())
   );
 
   const merged = [...storedList, ...missingDefaults]
-    .filter((p) => p && typeof p.email === "string")
+    .filter((p) => p && typeof p.email === "string" && !revokedEmails.has(p.email.toLowerCase().trim()))
     .map((p) => ({
     name: p.name,
     email: p.email,
@@ -135,13 +179,16 @@ export function getRegisteredPlayers(): RegisteredPlayer[] {
     referredBy: p.referredBy || "",
     referralChipsEarned: typeof p.referralChipsEarned === "number" ? p.referralChipsEarned : 0,
     unclaimedReferralChips: typeof p.unclaimedReferralChips === "number" ? p.unclaimedReferralChips : 0,
-    chips: typeof p.chips === "number" ? p.chips : 100000,
-    bonusBalance: typeof p.bonusBalance === "number" ? p.bonusBalance : 500,
+    chips: typeof p.chips === "number" ? p.chips : 0,
+    bonusBalance: typeof p.bonusBalance === "number" ? p.bonusBalance : 200,
+    totalWagerRequired: typeof p.totalWagerRequired === "number" ? p.totalWagerRequired : ((typeof p.bonusBalance === "number" ? p.bonusBalance : 200) * 30),
+    currentWagerProgress: typeof p.currentWagerProgress === "number" ? p.currentWagerProgress : 0,
     cumulativeLosses: typeof p.cumulativeLosses === "number" ? p.cumulativeLosses : 0,
-    peakChips: typeof p.peakChips === "number" ? p.peakChips : (p.chips || 100000),
+    peakChips: typeof p.peakChips === "number" ? p.peakChips : (p.chips || 0),
     loanCount: typeof p.loanCount === "number" ? p.loanCount : 0,
     status: p.status || "active",
-    vipLevel: p.vipLevel || "VIP Member"
+    vipLevel: p.vipLevel || "VIP Member",
+    hasDeposited: p.hasDeposited !== undefined ? Boolean(p.hasDeposited) : (typeof p.chips === "number" && p.chips > 0)
   }));
 
   try {

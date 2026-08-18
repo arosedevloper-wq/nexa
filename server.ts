@@ -270,12 +270,17 @@ app.get("/api/admin/players", (req, res) => {
 });
 
 app.post("/api/admin/players", (req, res) => {
-  const { player, players } = req.body;
+  const { player, players, replaceAll } = req.body;
+  if (replaceAll === true && Array.isArray(players)) {
+    inMemoryPlayers = players;
+    return res.json({ success: true, count: inMemoryPlayers.length });
+  }
+
   const list = players || (player ? [player] : []);
   if (Array.isArray(list)) {
     for (const p of list) {
       if (!p || !p.email) continue;
-      const idx = inMemoryPlayers.findIndex(x => x.email.toLowerCase() === p.email.toLowerCase());
+      const idx = inMemoryPlayers.findIndex(x => x.email && x.email.toLowerCase().trim() === p.email.toLowerCase().trim());
       if (idx >= 0) {
         inMemoryPlayers[idx] = { ...inMemoryPlayers[idx], ...p };
       } else {
@@ -285,6 +290,26 @@ app.post("/api/admin/players", (req, res) => {
     return res.json({ success: true, count: inMemoryPlayers.length });
   }
   return res.status(400).json({ error: "INVALID_PLAYERS" });
+});
+
+app.post("/api/admin/players/delete", (req, res) => {
+  const { email } = req.body;
+  if (email && typeof email === "string") {
+    const targetEmail = email.toLowerCase().trim();
+    inMemoryPlayers = inMemoryPlayers.filter(p => p.email && p.email.toLowerCase().trim() !== targetEmail);
+    return res.json({ success: true, count: inMemoryPlayers.length, message: `Player ${targetEmail} revoked and deleted.` });
+  }
+  return res.status(400).json({ error: "INVALID_EMAIL" });
+});
+
+app.delete("/api/admin/players/:email", (req, res) => {
+  const email = req.params.email;
+  if (email) {
+    const targetEmail = email.toLowerCase().trim();
+    inMemoryPlayers = inMemoryPlayers.filter(p => p.email && p.email.toLowerCase().trim() !== targetEmail);
+    return res.json({ success: true, count: inMemoryPlayers.length, message: `Player ${targetEmail} revoked and deleted.` });
+  }
+  return res.status(400).json({ error: "INVALID_EMAIL" });
 });
 
 app.get("/api/admin/sub-admins", (req, res) => {

@@ -902,10 +902,7 @@ export default function PlayerProfile({
     };
 
     saveBankingRequestToDatabase(newRequest as any);
-
-    const updatedRequests = [newRequest, ...bankingRequests];
-    setBankingRequests(updatedRequests);
-    localStorage.setItem("casino_banking_requests_v1", JSON.stringify(updatedRequests));
+    setBankingRequests(getBankingRequests() as any);
 
     // Store initial P2P chat message in casino_chat_messages_v1 so agent sees it in AgentDashboard
     if (paymentMethod === "mobile" && activePlayer?.email) {
@@ -972,12 +969,13 @@ export default function PlayerProfile({
   };
 
   const handleCancelRequest = (requestId: string) => {
-    const req = bankingRequests.find(r => r.id === requestId);
+    const allReqs = getBankingRequests();
+    const req = allReqs.find(r => r.id === requestId);
     if (!req || req.status !== "pending") return;
 
-    const updatedRequests = bankingRequests.filter(r => r.id !== requestId);
+    const updatedRequests = allReqs.filter(r => r.id !== requestId);
+    saveAllBankingRequestsToDatabase(updatedRequests);
     setBankingRequests(updatedRequests);
-    localStorage.setItem("casino_banking_requests_v1", JSON.stringify(updatedRequests));
 
     // Refund chips for withdrawal
     if (req.type === "withdraw" && onUpdateChips) {

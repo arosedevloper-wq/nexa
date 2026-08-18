@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Coins, Play, Sparkles, Flame, ShieldAlert, Crown, RotateCcw, Crosshair, Skull, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { casinoAudio } from "../../lib/audioService";
+import { evaluateLiveGameRound } from "../../constants/liveGameConfig";
 
 interface WantedDeadOrAWildGameProps {
   chips: number;

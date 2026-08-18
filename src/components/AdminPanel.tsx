@@ -17,6 +17,7 @@ import { getReferralEvents, getReferralSettings, processRefereeDepositReferral }
 import { casinoAudio } from "../lib/audioService";
 import { 
   savePlayerToDatabase, 
+  deletePlayerFromDatabase,
   saveBankingRequestToDatabase, 
   saveP2PAgentToDatabase, 
   saveAllP2PAgentsToDatabase, 
@@ -224,6 +225,38 @@ export default function AdminPanel({
   const [portfolioStatusFilter, setPortfolioStatusFilter] = useState<string>("all");
   const [portfolioPage, setPortfolioPage] = useState<number>(1);
   const [editingGame, setEditingGame] = useState<any | null>(null);
+
+  // Global Player Revocation Modal State
+  const [playerToRevoke, setPlayerToRevoke] = useState<RegisteredPlayer | null>(null);
+  const [isRevoking, setIsRevoking] = useState<boolean>(false);
+
+  const handleExecuteRevokePlayer = async (rp: RegisteredPlayer) => {
+    if (!rp || !rp.email || isRevoking) return;
+    setIsRevoking(true);
+    casinoAudio.playLose();
+    const targetEmail = rp.email.toLowerCase().trim();
+    
+    try {
+      // 1. Delete globally from persistent storage, server memory, and revoked registry
+      await deletePlayerFromDatabase(targetEmail);
+
+      // 2. Update local state immediately
+      const updated = registeredPlayers.filter(p => p.email && p.email.toLowerCase().trim() !== targetEmail);
+      setRegisteredPlayers(updated);
+      
+      // 3. Security Audit Log
+      onAddAuditLog(`SECURITY: Revoked and permanently deleted player account: ${rp.name} (${rp.email})`, "danger");
+      
+      // 4. Dispatch storage events for instant live sync across open tabs
+      window.dispatchEvent(new Event("storage"));
+      window.dispatchEvent(new CustomEvent("players_updated"));
+    } catch (e) {
+      console.error("Error during player revocation:", e);
+    } finally {
+      setIsRevoking(false);
+      setPlayerToRevoke(null);
+    }
+  };
 
   // Sync event listeners for live activity streaming, portfolio updates, and Cloudflare D1 real-time sync
   useEffect(() => {
@@ -2517,18 +2550,10 @@ export default function AdminPanel({
                                   <button
                                     onClick={() => {
                                       casinoAudio.playClick();
-                                      const confirmDelete = window.confirm(`Are you sure you want to permanently delete account keys for ${rp.name} (${rp.email})?`);
-                                      if (confirmDelete) {
-                                        const updated = registeredPlayers.filter(p => p.email.toLowerCase() !== rp.email.toLowerCase());
-                                        setRegisteredPlayers(updated);
-                                        localStorage.setItem("registered_players_v1", JSON.stringify(updated));
-                                        saveAllPlayersToDatabase(updated as any);
-                                        onAddAuditLog(`SECURITY: Revoked and deleted player account: ${rp.email}`, "danger");
-                                        window.dispatchEvent(new Event("storage"));
-                                      }
+                                      setPlayerToRevoke(rp);
                                     }}
                                     className="px-2.5 py-1.5 rounded-lg border border-rose-950/50 hover:border-rose-500 bg-rose-950/20 hover:bg-rose-950/60 text-rose-400 text-[10px] transition-all cursor-pointer inline-flex items-center gap-1 font-bold"
-                                    title="Delete Player Account"
+                                    title="Revoke and Permanently Delete Player Account Globally"
                                   >
                                     <Trash2 className="h-3 w-3" /> Revoke
                                   </button>
@@ -2541,6 +2566,86 @@ export default function AdminPanel({
                   </table>
                 </div>
               </div>
+
+              {/* MODAL: CONFIRM REVOKE PLAYER ACCOUNT GLOBALLY */}
+              {playerToRevoke && (
+                <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+                  <div className="bg-slate-900 border border-rose-500/50 rounded-2xl p-6 max-w-md w-full font-mono space-y-4 shadow-[0_0_40px_rgba(244,63,94,0.3)] animate-in fade-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between border-b border-rose-500/30 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-rose-950/80 border border-rose-500/60 text-rose-400">
+                          <AlertTriangle className="h-6 w-6 text-rose-400 animate-pulse" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-white uppercase tracking-wider">Revoke Player Account</h4>
+                          <p className="text-[10px] text-rose-400 font-bold uppercase tracking-wide">Global Permanent Revocation</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => !isRevoking && setPlayerToRevoke(null)}
+                        disabled={isRevoking}
+                        className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-all"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-4 space-y-2 text-xs">
+                      <div className="flex justify-between items-center text-slate-300">
+                        <span className="text-slate-500 font-bold">Player Name:</span>
+                        <span className="text-white font-bold">{playerToRevoke.name}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-300">
+                        <span className="text-slate-500 font-bold">Email:</span>
+                        <span className="text-amber-400 font-mono font-bold">{playerToRevoke.email}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-300">
+                        <span className="text-slate-500 font-bold">Main Balance:</span>
+                        <span className="text-emerald-400 font-mono font-bold">${(playerToRevoke.chips || 0).toLocaleString()} USDT</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-300">
+                        <span className="text-slate-500 font-bold">Locked Bonus:</span>
+                        <span className="text-amber-300 font-mono font-bold">${(playerToRevoke.bonusBalance || 0).toLocaleString()} USDT</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-300">
+                        <span className="text-slate-500 font-bold">Status:</span>
+                        <span className="text-rose-400 uppercase font-bold text-[10px] bg-rose-950/50 px-2 py-0.5 rounded border border-rose-500/30">Targeted For Revoke</span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Are you sure you want to permanently revoke and delete this player account? The account keys will be erased from server memory and database, active sessions will be terminated, and login will be blocked globally.
+                    </p>
+
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        disabled={isRevoking}
+                        onClick={() => setPlayerToRevoke(null)}
+                        className="flex-1 px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-slate-300 font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isRevoking}
+                        onClick={() => handleExecuteRevokePlayer(playerToRevoke)}
+                        className="flex-1 px-4 py-2.5 rounded-xl border border-rose-500 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs transition-all shadow-[0_0_20px_rgba(244,63,94,0.4)] cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        {isRevoking ? (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Revoking...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4" /> Yes, Revoke Globally
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* MODAL: ADD NEW PLAYER ACCOUNT */}
               {showAddPlayerModal && (

@@ -30,7 +30,8 @@ export const TeenPattiGame: React.FC<TeenPattiGameProps> = ({
 
   const handleDealRound = () => {
     if (chips < betAmount) {
-      alert("Insufficient chips!");
+      setMessage("Insufficient chips! Please claim bonus or deposit chips to play.");
+      casinoAudio.playClick();
       return;
     }
     casinoAudio.playCardFlip();

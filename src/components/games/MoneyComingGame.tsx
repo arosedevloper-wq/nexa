@@ -24,7 +24,8 @@ export const MoneyComingGame: React.FC<MoneyComingGameProps> = ({
 
   const handleSpinReels = () => {
     if (chips < betAmount) {
-      alert("Insufficient chips!");
+      setMessage("Insufficient chips! Please claim bonus or deposit chips to play.");
+      casinoAudio.playClick();
       return;
     }
     casinoAudio.playWheelSpin();

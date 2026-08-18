@@ -129,7 +129,8 @@ export const RoyalFishingGame: React.FC<RoyalFishingGameProps> = ({
 
   const handleShootCannon = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (chips < betAmount) {
-      alert("Insufficient chips!");
+      setMessage("Insufficient chips! Please claim bonus or deposit chips to shoot.");
+      casinoAudio.playClick();
       return;
     }
     casinoAudio.playLaserShot();

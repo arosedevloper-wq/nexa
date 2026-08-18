@@ -50,7 +50,7 @@ export default function CasinoFloor({
     <div id="casino-floor-main-container" className="space-y-6">
       {/* 200 Games catalog explorer (Main floor game grids, category listings, spotlight carousels, and search) */}
       <GamesCatalog
-        chips={chips + bonusBalance}
+        chips={chips}
         onLaunchGame={onLaunchGame}
         onPlayInstantWin={onPlayInstantWin}
       />

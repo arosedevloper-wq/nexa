@@ -29,26 +29,31 @@ export function getServerRtpConfig() {
 export function getEffectiveWinProbability(baseProb: number, overrideConfig?: Partial<typeof serverRtpConfig>): number {
   const cfg = { ...serverRtpConfig, ...overrideConfig };
 
-  if (cfg.forceLoseMode) return 0;
+  if (cfg.forceLoseMode) return 0.02;
 
   if (cfg.rtpBias === "custom" && typeof cfg.customWinRatio === "number") {
-    return Math.max(0, Math.min(0.98, cfg.customWinRatio / 100));
+    if (cfg.customWinRatio <= 20) {
+      return Math.max(0.01, Math.min(0.12, cfg.customWinRatio / 100));
+    }
+    return Math.max(0.01, Math.min(0.10, (cfg.customWinRatio / 100) * 0.08));
   }
 
-  // Base scaling by globalRtp (baseline 95.0%)
-  const rtpRatio = Math.max(0.1, (cfg.globalRtp || 95.0) / 95.0);
-  let effectiveProb = baseProb * rtpRatio;
+  // Base scaling by globalRtp (baseline 5.0%)
+  const rtpRatio = Math.max(0.01, Math.min(1.0, (cfg.globalRtp || 5.0) / 95.0));
+  let effectiveProb = Math.min(baseProb, 0.08) * rtpRatio;
 
   // Apply RTP Bias mode
   if (cfg.rtpBias === "loose") {
-    effectiveProb *= 1.25;
+    effectiveProb = 0.08;
   } else if (cfg.rtpBias === "tight") {
-    effectiveProb *= 0.75;
+    effectiveProb = 0.02;
   } else if (cfg.rtpBias === "rigged") {
-    effectiveProb *= 0.25;
+    effectiveProb = 0.01;
+  } else if (cfg.rtpBias === "standard") {
+    effectiveProb = 0.05;
   }
 
-  return Math.max(0, Math.min(0.98, effectiveProb));
+  return Math.max(0.01, Math.min(0.10, effectiveProb));
 }
 
 /**

@@ -24,52 +24,7 @@ export interface BankingRequest {
   mobileBankingService?: string;
 }
 
-export const DEFAULT_BANKING_REQUESTS: BankingRequest[] = [
-  {
-    id: "req-101",
-    playerName: "Research Niam",
-    playerEmail: "research.niam@gmail.com",
-    amount: 500, // 500 USDT
-    type: "deposit",
-    status: "pending",
-    date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    isCrypto: true,
-    paymentCategory: "binance",
-    cryptoAsset: "Binance Pay USDT",
-    cryptoWalletAddress: "284910385", // Binance Pay ID
-    cryptoTxHash: "BP-998877665544",
-    transactionId: "BP-998877665544"
-  },
-  {
-    id: "req-102",
-    playerName: "High Roller Jess",
-    playerEmail: "jess.vip@gmail.com",
-    amount: 1000, // 1000 USDT
-    type: "deposit",
-    status: "pending",
-    date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    isCrypto: true,
-    paymentCategory: "web3",
-    cryptoAsset: "USDT (TRC-20)",
-    cryptoWalletAddress: "T9xMasterCasinoWalletUSDT2026Crypto",
-    cryptoTxHash: "0x8f7a9d2c1e4b3a6f8e0c9d7a5b3c1e4f6a8d2c0b",
-    transactionId: "0x8f7a9d2c1e4b3a6f8e0c9d7a5b3c1e4f6a8d2c0b"
-  },
-  {
-    id: "req-103",
-    playerName: "Lucky Dan",
-    playerEmail: "dan.roulette@gmail.com",
-    amount: 250,
-    type: "withdrawal",
-    status: "pending",
-    date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    isCrypto: true,
-    paymentCategory: "web3",
-    cryptoAsset: "USDT (BEP-20)",
-    cryptoWalletAddress: "0x71C7B5a713A29f27d5320d75a1348123A8429C91",
-    transactionId: "WTH-33445566"
-  }
-];
+export const DEFAULT_BANKING_REQUESTS: BankingRequest[] = [];
 
 export function getBankingRequests(): BankingRequest[] {
   let storedList: BankingRequest[] = [];
@@ -77,16 +32,15 @@ export function getBankingRequests(): BankingRequest[] {
     const storedV1 = localStorage.getItem("casino_banking_requests_v1");
     if (storedV1) {
       const parsed = JSON.parse(storedV1);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        storedList = parsed;
+      if (Array.isArray(parsed)) {
+        // Filter out any legacy hardcoded demo requests like req-101, req-102, req-103
+        storedList = parsed.filter(
+          r => r && r.id && !["req-101", "req-102", "req-103"].includes(r.id)
+        );
       }
     }
   } catch (e) {
     console.error("Error parsing banking requests:", e);
-  }
-
-  if (storedList.length === 0) {
-    storedList = DEFAULT_BANKING_REQUESTS;
   }
 
   return storedList;

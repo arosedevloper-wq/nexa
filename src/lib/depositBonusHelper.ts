@@ -57,38 +57,75 @@ export function processDepositApprovalForPlayer(playerEmail: string, depositAmou
   const priorCount = getApprovedDepositCountForPlayer(playerEmail, currentRequestId);
   const { bonusPercent, bonusAmount, addedWagerRequired } = calculateDepositBonus(depositAmount, priorCount);
 
+  const emailClean = playerEmail.toLowerCase().trim();
+  const phoneClean = playerEmail.replace(/\D/g, "");
+
   // Load registered players
   const players = getRegisteredPlayers();
-  const idx = players.findIndex(p => p.email && p.email.toLowerCase() === playerEmail.toLowerCase());
+  let idx = players.findIndex(p => 
+    (p.email && p.email.toLowerCase().trim() === emailClean) ||
+    (phoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === phoneClean) ||
+    (p.name && p.name.toLowerCase().trim() === emailClean)
+  );
 
   let updatedPlayer: RegisteredPlayer | null = null;
 
   if (idx !== -1) {
     const p = players[idx];
-    const currentChips = p.chips !== undefined ? Number(p.chips) : 1000;
-    const currentBonus = p.bonusBalance !== undefined ? Number(p.bonusBalance) : 0;
-    const currentTarget = p.totalWagerRequired !== undefined ? Number(p.totalWagerRequired) : 0;
+    const currentChips = p.chips !== undefined ? Number(p.chips) : 0;
+    const currentBonus = p.bonusBalance !== undefined ? Number(p.bonusBalance) : 200;
+    const currentTarget = p.totalWagerRequired !== undefined ? Number(p.totalWagerRequired) : (currentBonus * 30);
+    const currentProgress = p.currentWagerProgress !== undefined ? Number(p.currentWagerProgress) : 0;
 
     p.chips = currentChips + depositAmount;
     p.bonusBalance = currentBonus + bonusAmount;
     p.totalWagerRequired = currentTarget + addedWagerRequired;
+    p.currentWagerProgress = currentProgress;
     p.peakChips = Math.max(p.peakChips || 0, p.chips);
     p.hasDeposited = true;
 
     updatedPlayer = p;
     localStorage.setItem("registered_players_v1", JSON.stringify(players));
     savePlayerToDatabase(p);
+  } else {
+    // If player record doesn't exist yet, auto-create global player record
+    const newPlayer: RegisteredPlayer = {
+      name: playerEmail.split("@")[0] || "Global Player",
+      email: playerEmail.includes("@") ? emailClean : `${playerEmail.replace(/\s+/g, "_")}@global.player`,
+      phoneNumber: phoneClean || "01700-000000",
+      password: "password123",
+      referralCode: "VIP" + Math.floor(1000 + Math.random() * 9000),
+      chips: depositAmount,
+      bonusBalance: 200 + bonusAmount,
+      totalWagerRequired: (200 * 30) + addedWagerRequired,
+      currentWagerProgress: 0,
+      peakChips: depositAmount,
+      hasDeposited: true,
+      status: "active"
+    };
+    players.push(newPlayer);
+    updatedPlayer = newPlayer;
+    localStorage.setItem("registered_players_v1", JSON.stringify(players));
+    savePlayerToDatabase(newPlayer);
   }
 
-  // Check if current logged in user matches this email and update local storage keys directly
+  // Check if current logged in user matches this email/phone and update local storage keys directly
   try {
     const userStr = localStorage.getItem("casino_user");
     if (userStr) {
       const user = JSON.parse(userStr);
-      if (user?.email && user.email.toLowerCase() === playerEmail.toLowerCase()) {
-        const curChips = Number(localStorage.getItem("casino_chips") || 1000);
-        const curBonus = Number(localStorage.getItem("casino_bonus_balance") || 0);
-        const curWager = Number(localStorage.getItem("casino_total_wager_required") || 0);
+      const userEmail = user?.email?.toLowerCase()?.trim();
+      const userPhone = user?.phoneNumber?.replace(/\D/g, "");
+      const userName = user?.name?.toLowerCase()?.trim();
+
+      const isMe = (userEmail && userEmail === emailClean) ||
+                   (userPhone && phoneClean && userPhone === phoneClean) ||
+                   (userName && userName === emailClean);
+
+      if (isMe) {
+        const curChips = Number(localStorage.getItem("casino_chips") || 0);
+        const curBonus = Number(localStorage.getItem("casino_bonus_balance") || 200);
+        const curWager = Number(localStorage.getItem("casino_total_wager_required") || (curBonus * 30));
 
         localStorage.setItem("casino_chips", String(curChips + depositAmount));
         localStorage.setItem("casino_bonus_balance", String(curBonus + bonusAmount));
@@ -102,6 +139,18 @@ export function processDepositApprovalForPlayer(playerEmail: string, depositAmou
 
   // Notify listeners / active components
   window.dispatchEvent(new Event("storage"));
+  window.dispatchEvent(new Event("balance_updated"));
+  window.dispatchEvent(new Event("players_updated"));
+  window.dispatchEvent(new Event("p2p_state_updated"));
+  window.dispatchEvent(new CustomEvent("deposit_approved", { 
+    detail: { 
+      playerEmail, 
+      depositAmount, 
+      bonusAmount, 
+      addedWagerRequired,
+      newBalance: updatedPlayer?.chips 
+    } 
+  }));
 
   return {
     bonusPercent,

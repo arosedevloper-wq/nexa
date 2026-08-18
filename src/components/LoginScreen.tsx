@@ -9,9 +9,9 @@ import { casinoAudio } from "../lib/audioService";
 import NexaSpinLogo from "./NexaSpinLogo";
 import { Transaction } from "../types";
 import { getMergedP2PAgents } from "../constants/p2pAgents";
-import { getRegisteredPlayers } from "../constants/defaultPlayers";
+import { getRegisteredPlayers, getRevokedPlayerEmails } from "../constants/defaultPlayers";
 import { getSubAdmins } from "../constants/subAdmins";
-import { saveAllPlayersToDatabase } from "../lib/db";
+import { saveAllPlayersToDatabase, fetchCloudPlayersFromD1 } from "../lib/db";
 import { 
   supabase, 
   sendPhoneOtp, 
@@ -40,7 +40,7 @@ interface RegisteredPlayer {
   currentWagerProgress?: number;
   peakChips?: number;
   loanCount?: number;
-  vipLevel?: number;
+  vipLevel?: number | string;
   transactions?: Transaction[];
 }
 
@@ -270,8 +270,15 @@ export default function LoginScreen({ onLoginSuccess, onAddAuditLog }: LoginScre
     }
 
     // 4. Regular Player Direct Login (NO SMS OTP REQUIRED)
+    const revokedEmails = getRevokedPlayerEmails();
     const existing = players.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === cleanDigits);
     if (existing) {
+      if (existing.email && revokedEmails.has(existing.email.toLowerCase().trim())) {
+        setLoginError("This player account has been revoked by Casino Administration.");
+        casinoAudio.playClick();
+        return;
+      }
+
       if ((existing as any).status === "suspended" || (existing as any).status === "blocked") {
         setLoginError("This player account has been suspended by Casino Administration.");
         casinoAudio.playClick();
@@ -286,7 +293,7 @@ export default function LoginScreen({ onLoginSuccess, onAddAuditLog }: LoginScre
         email: existing.email,
         chips: existing.chips || 0,
         bonus_balance: existing.bonusBalance || 200,
-        vip_level: existing.vipLevel || 1,
+        vip_level: Number(existing.vipLevel) || 1,
         role: "player"
       });
 
@@ -437,7 +444,7 @@ export default function LoginScreen({ onLoginSuccess, onAddAuditLog }: LoginScre
           email: existing.email,
           chips: existing.chips || 0,
           bonus_balance: existing.bonusBalance || 200,
-          vip_level: existing.vipLevel || 1,
+          vip_level: Number(existing.vipLevel) || 1,
           role: "player"
         });
 
@@ -542,7 +549,7 @@ export default function LoginScreen({ onLoginSuccess, onAddAuditLog }: LoginScre
   };
 
   // Main Unified Login Submit Handler
-  const handleMainLoginSubmit = (e: React.FormEvent) => {
+  const handleMainLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
 
@@ -658,13 +665,43 @@ export default function LoginScreen({ onLoginSuccess, onAddAuditLog }: LoginScre
       }
     }
 
-    // D. Check Registered Player Credentials
-    const playerMatch = players.find((p: any) => 
+    // D. Check Registered Player Credentials (with Remote/Cloud lookup fallback)
+    const revokedEmails = getRevokedPlayerEmails();
+    if (revokedEmails.has(inputClean)) {
+      setLoginError("This player account has been revoked by Casino Administration.");
+      casinoAudio.playClick();
+      return;
+    }
+
+    let currentPlayers = players;
+    let playerMatch = currentPlayers.find((p: any) => 
       (p.email && p.email.toLowerCase() === inputClean) ||
       (p.name && p.name.toLowerCase() === inputClean) ||
       (p.phoneNumber && cleanPhoneDigits.length >= 10 && p.phoneNumber.replace(/\D/g, "") === cleanPhoneDigits)
     );
+
+    if (!playerMatch) {
+      try {
+        const fresh = await fetchCloudPlayersFromD1();
+        if (fresh && fresh.length > 0) {
+          setPlayers(fresh);
+          currentPlayers = fresh;
+          playerMatch = fresh.find((p: any) => 
+            (p.email && p.email.toLowerCase() === inputClean) ||
+            (p.name && p.name.toLowerCase() === inputClean) ||
+            (p.phoneNumber && cleanPhoneDigits.length >= 10 && p.phoneNumber.replace(/\D/g, "") === cleanPhoneDigits)
+          );
+        }
+      } catch (err) {}
+    }
+
     if (playerMatch) {
+      if (playerMatch.email && revokedEmails.has(playerMatch.email.toLowerCase().trim())) {
+        setLoginError("This player account has been revoked by Casino Administration.");
+        casinoAudio.playClick();
+        return;
+      }
+
       if ((playerMatch as any).status === "suspended" || (playerMatch as any).status === "blocked") {
         setLoginError("This player account has been suspended by Casino Administration.");
         casinoAudio.playClick();

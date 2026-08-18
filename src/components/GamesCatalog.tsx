@@ -511,7 +511,7 @@ export default function GamesCatalog({ chips, onLaunchGame, onPlayInstantWin }: 
   const handlePlayClick = (game: CasinoGame) => {
     casinoAudio.playClick();
     if (game.status === "VIP Locked") {
-      alert(`This game is locked! Level up your peak chips stack or VIP tier to unlock ${game.name}.`);
+      setMiniGameResult(`This game is locked! Level up your peak chips stack or VIP tier to unlock ${game.name}.`);
       return;
     }
 
@@ -528,7 +528,8 @@ export default function GamesCatalog({ chips, onLaunchGame, onPlayInstantWin }: 
   // Coin Flip resolve
   const playCoinFlip = () => {
     if (chips < miniGameBet) {
-      alert("You don't have enough chips to place this bet!");
+      setMiniGameResult("Insufficient Real Chips! A real deposit is required to play with real funds.");
+      casinoAudio.playClick();
       return;
     }
     setIsMiniGameRolling(true);
@@ -555,7 +556,8 @@ export default function GamesCatalog({ chips, onLaunchGame, onPlayInstantWin }: 
   // Hi-Lo resolve
   const playHiLo = () => {
     if (chips < miniGameBet) {
-      alert("You don't have enough chips to place this bet!");
+      setMiniGameResult("Insufficient Real Chips! A real deposit is required to play with real funds.");
+      casinoAudio.playClick();
       return;
     }
     setIsMiniGameRolling(true);

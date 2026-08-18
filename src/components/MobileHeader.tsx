@@ -22,6 +22,7 @@ interface MobileHeaderProps {
 
 export const MobileHeader: React.FC<MobileHeaderProps> = ({
   chips,
+  bonusBalance = 0,
   onOpenDeposit,
   isSfxMuted,
   onToggleSfx,
@@ -78,6 +79,22 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               <span className="font-mono text-[9px]">DEPOSIT</span>
             </button>
           </div>
+
+          {/* Locked Bonus Pill */}
+          {bonusBalance > 0 && (
+            <div 
+              onClick={() => {
+                casinoAudio.playClick();
+                onOpenDeposit();
+              }}
+              className="hidden sm:flex items-center gap-1 bg-amber-950/40 border border-amber-500/30 rounded-xl px-2 py-1 cursor-pointer hover:border-amber-400/60 transition-all"
+              title="Locked Bonus Vault: Unlocks with 30x Real Play Wagering"
+            >
+              <span className="text-[10px]">🔒</span>
+              <span className="text-[10px] font-mono font-bold text-amber-300">${bonusBalance.toFixed(0)}</span>
+              <span className="text-[8px] font-mono font-black text-amber-500 uppercase">BONUS</span>
+            </div>
+          )}
 
           {/* Vance AI Host Quick Button */}
           {onOpenVanceAi && (

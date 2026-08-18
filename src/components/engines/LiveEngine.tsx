@@ -53,7 +53,8 @@ export const LiveEngine: React.FC<LiveEngineProps> = ({
 
   const placeLiveBet = () => {
     if (chips < bet) {
-      alert("Insufficient chips balance!");
+      setRoundResult("Insufficient chips balance! Please top up or claim daily rewards.");
+      casinoAudio.playClick();
       return;
     }
 

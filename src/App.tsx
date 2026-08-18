@@ -70,6 +70,7 @@ import { VegasHighRollerSuite } from "./components/VegasHighRollerSuite";
 import GameLauncher from "./components/games/GameLauncher";
 import { PromotionalBannerBar } from "./components/PromotionalBannerBar";
 import { PromotionalHeroBanner } from "./components/PromotionalHeroBanner";
+import DepositRequiredModal from "./components/DepositRequiredModal";
 import { motion, AnimatePresence } from "motion/react";
 
 interface AuditLog {
@@ -196,6 +197,7 @@ export default function App() {
   const [loginTime, setLoginTime] = useState<number | null>(null);
   const [showLoginWelcomePopup, setShowLoginWelcomePopup] = useState<boolean>(false);
   const [showQuestCompletedPopup, setShowQuestCompletedPopup] = useState<Quest | null>(null);
+  const [showDepositRequiredModal, setShowDepositRequiredModal] = useState<boolean>(false);
   const [customToast, setCustomToast] = useState<{ show: boolean; title: string; message: string; type: "info" | "success" } | null>(null);
 
   useEffect(() => {
@@ -210,7 +212,12 @@ export default function App() {
   const [activeLauncherGame, setActiveLauncherGame] = useState<{ id: string; name: string } | null>(null);
   const [isFloorRulesOpen, setIsFloorRulesOpen] = useState<boolean>(false);
   const [floorRulesTab, setFloorRulesTab] = useState<"house" | "cards" | "crash" | "slots" | "security">("house");
+  
   const lastKnownPlayerChipsRef = useRef<number | null>(null);
+  const lastKnownPlayerBonusRef = useRef<number | null>(null);
+  const lastKnownPlayerWagerReqRef = useRef<number | null>(null);
+  const lastKnownPlayerWagerProgRef = useRef<number | null>(null);
+  const lastKnownPlayerLossesRef = useRef<number | null>(null);
   const isPoppingStateRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -725,12 +732,25 @@ export default function App() {
             (pPhoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === pPhoneClean)
           );
           if (found) {
-            initialChips = found.chips !== undefined ? found.chips : 0;
-            initialPeak = found.peakChips !== undefined ? found.peakChips : initialChips;
-            initialLoans = found.loanCount !== undefined ? found.loanCount : 0;
+            initialChips = found.chips !== undefined ? Number(found.chips) : 0;
+            initialPeak = found.peakChips !== undefined ? Number(found.peakChips) : initialChips;
+            initialLoans = found.loanCount !== undefined ? Number(found.loanCount) : 0;
             initialTransactions = found.transactions || [];
-            setBonusBalance(found.bonusBalance !== undefined ? found.bonusBalance : 200);
-            if (found.cumulativeLosses !== undefined) setCumulativeLosses(found.cumulativeLosses);
+            const initialBonus = found.bonusBalance !== undefined ? Number(found.bonusBalance) : 200;
+            const initialWagerReq = found.totalWagerRequired !== undefined ? Number(found.totalWagerRequired) : (initialBonus > 0 ? initialBonus * 30 : 0);
+            const initialWagerProg = found.currentWagerProgress !== undefined ? Number(found.currentWagerProgress) : 0;
+            const initialLosses = found.cumulativeLosses !== undefined ? Number(found.cumulativeLosses) : 0;
+
+            setBonusBalance(initialBonus);
+            setTotalWagerRequired(initialWagerReq);
+            setCurrentWagerProgress(initialWagerProg);
+            setCumulativeLosses(initialLosses);
+
+            lastKnownPlayerChipsRef.current = initialChips;
+            lastKnownPlayerBonusRef.current = initialBonus;
+            lastKnownPlayerWagerReqRef.current = initialWagerReq;
+            lastKnownPlayerWagerProgRef.current = initialWagerProg;
+            lastKnownPlayerLossesRef.current = initialLosses;
           }
         } catch (e) {
           console.error(e);
@@ -743,12 +763,25 @@ export default function App() {
       const savedTransactions = localStorage.getItem("casino_transactions");
       const savedBonus = localStorage.getItem("casino_bonus_balance");
       const savedLosses = localStorage.getItem("casino_cumulative_losses");
+      const savedWagerReq = localStorage.getItem("casino_total_wager_required");
+      const savedWagerProg = localStorage.getItem("casino_current_wager_progress");
 
       if (savedChips !== null) initialChips = Number(savedChips);
       if (savedPeak !== null) initialPeak = Number(savedPeak);
       if (savedLoans !== null) initialLoans = Number(savedLoans);
-      if (savedBonus !== null) setBonusBalance(Number(savedBonus)); else setBonusBalance(200);
+      
+      const initialBonus = savedBonus !== null ? Number(savedBonus) : 200;
+      setBonusBalance(initialBonus);
       if (savedLosses !== null) setCumulativeLosses(Number(savedLosses));
+      if (savedWagerReq !== null) setTotalWagerRequired(Number(savedWagerReq));
+      if (savedWagerProg !== null) setCurrentWagerProgress(Number(savedWagerProg));
+
+      lastKnownPlayerChipsRef.current = initialChips;
+      lastKnownPlayerBonusRef.current = initialBonus;
+      lastKnownPlayerWagerReqRef.current = savedWagerReq !== null ? Number(savedWagerReq) : (initialBonus * 30);
+      lastKnownPlayerWagerProgRef.current = savedWagerProg !== null ? Number(savedWagerProg) : 0;
+      lastKnownPlayerLossesRef.current = savedLosses !== null ? Number(savedLosses) : 0;
+
       if (savedTransactions) {
         try {
           initialTransactions = JSON.parse(savedTransactions);
@@ -910,11 +943,13 @@ export default function App() {
 
       try {
         const playersList: any[] = JSON.parse(storedReqs);
-        const pEmail = currentUser.email?.toLowerCase();
+        const pEmail = currentUser.email?.toLowerCase()?.trim();
         const pPhoneClean = currentUser.phoneNumber?.replace(/\D/g, "");
+        const pName = currentUser.name?.toLowerCase()?.trim();
         const found = playersList.find(p => 
-          (pEmail && p.email && p.email.toLowerCase() === pEmail) || 
-          (pPhoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === pPhoneClean)
+          (pEmail && p.email && p.email.toLowerCase().trim() === pEmail) || 
+          (pPhoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === pPhoneClean) ||
+          (pName && p.name && p.name.toLowerCase().trim() === pName)
         );
 
         if (found) {
@@ -923,8 +958,8 @@ export default function App() {
             const currentRef = lastKnownPlayerChipsRef.current;
 
             // If externalChips differs from our lastKnownPlayerChipsRef, an Agent or Admin updated it!
-            if (currentRef !== null && externalChips !== currentRef) {
-              const diff = externalChips - currentRef;
+            if (currentRef === null || externalChips !== currentRef) {
+              const diff = currentRef !== null ? externalChips - currentRef : 0;
               lastKnownPlayerChipsRef.current = externalChips;
               setChips(externalChips);
               localStorage.setItem("casino_chips", String(externalChips));
@@ -936,7 +971,7 @@ export default function App() {
                   type: "reward",
                   amount: diff,
                   time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  description: `Deposit Approved (+$${diff.toLocaleString()})`
+                  description: `Deposit Approved (+${diff.toLocaleString()})`
                 };
                 setTransactions(prev => [newTx, ...prev]);
 
@@ -950,22 +985,34 @@ export default function App() {
             }
           }
 
-          if (found.bonusBalance !== undefined && Number(found.bonusBalance) !== bonusBalance) {
+          if (found.bonusBalance !== undefined) {
             const extBonus = Number(found.bonusBalance);
-            setBonusBalance(extBonus);
-            localStorage.setItem("casino_bonus_balance", String(extBonus));
+            const currentBonusRef = lastKnownPlayerBonusRef.current;
+            if (currentBonusRef === null || extBonus !== currentBonusRef) {
+              lastKnownPlayerBonusRef.current = extBonus;
+              setBonusBalance(extBonus);
+              localStorage.setItem("casino_bonus_balance", String(extBonus));
+            }
           }
 
-          if (found.totalWagerRequired !== undefined && Number(found.totalWagerRequired) !== totalWagerRequired) {
+          if (found.totalWagerRequired !== undefined) {
             const extWager = Number(found.totalWagerRequired);
-            setTotalWagerRequired(extWager);
-            localStorage.setItem("casino_total_wager_required", String(extWager));
+            const currentWagerRef = lastKnownPlayerWagerReqRef.current;
+            if (currentWagerRef === null || extWager !== currentWagerRef) {
+              lastKnownPlayerWagerReqRef.current = extWager;
+              setTotalWagerRequired(extWager);
+              localStorage.setItem("casino_total_wager_required", String(extWager));
+            }
           }
 
-          if (found.currentWagerProgress !== undefined && Number(found.currentWagerProgress) !== currentWagerProgress) {
+          if (found.currentWagerProgress !== undefined) {
             const extProg = Number(found.currentWagerProgress);
-            setCurrentWagerProgress(extProg);
-            localStorage.setItem("casino_current_wager_progress", String(extProg));
+            const currentProgRef = lastKnownPlayerWagerProgRef.current;
+            if (currentProgRef === null || extProg !== currentProgRef) {
+              lastKnownPlayerWagerProgRef.current = extProg;
+              setCurrentWagerProgress(extProg);
+              localStorage.setItem("casino_current_wager_progress", String(extProg));
+            }
           }
         }
       } catch (e) {
@@ -975,30 +1022,53 @@ export default function App() {
 
     const interval = setInterval(checkExternalUpdates, 1000);
     window.addEventListener("storage", checkExternalUpdates);
+    window.addEventListener("balance_updated", checkExternalUpdates);
+    window.addEventListener("players_updated", checkExternalUpdates);
+    window.addEventListener("p2p_state_updated", checkExternalUpdates);
+    window.addEventListener("deposit_approved", checkExternalUpdates);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("storage", checkExternalUpdates);
+      window.removeEventListener("balance_updated", checkExternalUpdates);
+      window.removeEventListener("players_updated", checkExternalUpdates);
+      window.removeEventListener("p2p_state_updated", checkExternalUpdates);
+      window.removeEventListener("deposit_approved", checkExternalUpdates);
     };
   }, [currentUser]);
 
   // Sync current logged in player's chips/peakChips/loanCount/transactions back to the master list in registered_players_v1
   useEffect(() => {
     if (currentUser && currentUser.role === "player") {
-      // Keep lastKnownPlayerChipsRef aligned with local state changes
-      lastKnownPlayerChipsRef.current = chips;
-
       const stored = localStorage.getItem("registered_players_v1");
       if (stored) {
         try {
           const playersList: any[] = JSON.parse(stored);
-          const pEmail = currentUser.email?.toLowerCase();
+          const pEmail = currentUser.email?.toLowerCase()?.trim();
           const pPhoneClean = currentUser.phoneNumber?.replace(/\D/g, "");
+          const pName = currentUser.name?.toLowerCase()?.trim();
+
+          const found = playersList.find(p => 
+            (pEmail && p.email && p.email.toLowerCase().trim() === pEmail) || 
+            (pPhoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === pPhoneClean) ||
+            (pName && p.name && p.name.toLowerCase().trim() === pName)
+          );
+
+          // If external balance in store was credited higher than our local chips, do NOT overwrite it!
+          if (found && found.chips !== undefined && Number(found.chips) > chips) {
+            setChips(Number(found.chips));
+            lastKnownPlayerChipsRef.current = Number(found.chips);
+            return;
+          }
+
+          // Keep lastKnownPlayerChipsRef aligned with local state changes
+          lastKnownPlayerChipsRef.current = chips;
           
           let changed = false;
           const updatedPlayers = playersList.map(p => {
-            const isMatch = (pEmail && p.email && p.email.toLowerCase() === pEmail) || 
-                            (pPhoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === pPhoneClean);
+            const isMatch = (pEmail && p.email && p.email.toLowerCase().trim() === pEmail) || 
+                            (pPhoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === pPhoneClean) ||
+                            (pName && p.name && p.name.toLowerCase().trim() === pName);
             if (isMatch) {
               if (p.chips !== chips || 
                   p.bonusBalance !== bonusBalance ||
@@ -1028,8 +1098,9 @@ export default function App() {
           if (changed) {
             localStorage.setItem("registered_players_v1", JSON.stringify(updatedPlayers));
             const updatedMe = updatedPlayers.find(p => 
-              (pEmail && p.email && p.email.toLowerCase() === pEmail) || 
-              (pPhoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === pPhoneClean)
+              (pEmail && p.email && p.email.toLowerCase().trim() === pEmail) || 
+              (pPhoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === pPhoneClean) ||
+              (pName && p.name && p.name.toLowerCase().trim() === pName)
             );
             if (updatedMe) {
               savePlayerToDatabase(updatedMe);
@@ -1126,37 +1197,113 @@ export default function App() {
     localStorage.removeItem("casino_all_missions_bonus_v2");
   };
 
+  const persistPlayerState = (updates: {
+    chips?: number;
+    bonusBalance?: number;
+    totalWagerRequired?: number;
+    currentWagerProgress?: number;
+    cumulativeLosses?: number;
+    peakChips?: number;
+    loanCount?: number;
+    transactions?: Transaction[];
+  }) => {
+    if (updates.chips !== undefined) {
+      lastKnownPlayerChipsRef.current = updates.chips;
+      localStorage.setItem("casino_chips", String(updates.chips));
+    }
+    if (updates.bonusBalance !== undefined) {
+      lastKnownPlayerBonusRef.current = updates.bonusBalance;
+      localStorage.setItem("casino_bonus_balance", String(updates.bonusBalance));
+    }
+    if (updates.totalWagerRequired !== undefined) {
+      lastKnownPlayerWagerReqRef.current = updates.totalWagerRequired;
+      localStorage.setItem("casino_total_wager_required", String(updates.totalWagerRequired));
+    }
+    if (updates.currentWagerProgress !== undefined) {
+      lastKnownPlayerWagerProgRef.current = updates.currentWagerProgress;
+      localStorage.setItem("casino_current_wager_progress", String(updates.currentWagerProgress));
+    }
+    if (updates.cumulativeLosses !== undefined) {
+      lastKnownPlayerLossesRef.current = updates.cumulativeLosses;
+      localStorage.setItem("casino_cumulative_losses", String(updates.cumulativeLosses));
+    }
+
+    if (currentUser && currentUser.role === "player") {
+      const stored = localStorage.getItem("registered_players_v1");
+      if (stored) {
+        try {
+          const playersList: any[] = JSON.parse(stored);
+          const pEmail = currentUser.email?.toLowerCase();
+          const pPhoneClean = currentUser.phoneNumber?.replace(/\D/g, "");
+          const index = playersList.findIndex(p => 
+            (pEmail && p.email && p.email.toLowerCase() === pEmail) || 
+            (pPhoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === pPhoneClean)
+          );
+          if (index >= 0) {
+            const updatedPlayer = {
+              ...playersList[index],
+              ...(updates.chips !== undefined ? { chips: updates.chips } : {}),
+              ...(updates.bonusBalance !== undefined ? { bonusBalance: updates.bonusBalance } : {}),
+              ...(updates.totalWagerRequired !== undefined ? { totalWagerRequired: updates.totalWagerRequired } : {}),
+              ...(updates.currentWagerProgress !== undefined ? { currentWagerProgress: updates.currentWagerProgress } : {}),
+              ...(updates.cumulativeLosses !== undefined ? { cumulativeLosses: updates.cumulativeLosses } : {}),
+              ...(updates.peakChips !== undefined ? { peakChips: updates.peakChips } : {}),
+              ...(updates.loanCount !== undefined ? { loanCount: updates.loanCount } : {}),
+              ...(updates.transactions !== undefined ? { transactions: updates.transactions } : {}),
+            };
+            playersList[index] = updatedPlayer;
+            localStorage.setItem("registered_players_v1", JSON.stringify(playersList));
+            savePlayerToDatabase(updatedPlayer);
+          }
+        } catch (e) {
+          console.error("Error updating player in registered_players_v1:", e);
+        }
+      }
+    }
+  };
+
   const awardBonusFunds = (bonusAmount: number, sourceName: string) => {
     if (bonusAmount <= 0) return;
     const addedWager = bonusAmount * 30;
 
-    setBonusBalance((prev) => prev + bonusAmount);
-    setTotalWagerRequired((prev) => prev + addedWager);
+    const nextBonus = bonusBalance + bonusAmount;
+    const nextWager = totalWagerRequired + addedWager;
 
-    addAuditLog(`🎁 BONUS AWARDED: $${bonusAmount.toFixed(2)} added to Locked Bonus Balance from [${sourceName}]. +$${addedWager.toFixed(2)} (30x) added to Wagering Requirement.`, "success");
+    setBonusBalance(nextBonus);
+    setTotalWagerRequired(nextWager);
+
+    addAuditLog(`🎁 BONUS AWARDED: ${bonusAmount.toFixed(2)} added to Locked Bonus Balance from [${sourceName}]. +${addedWager.toFixed(2)} (30x) added to Wagering Requirement.`, "success");
 
     const newTx: Transaction = {
       id: Math.random().toString(36).substring(2, 9),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       amount: bonusAmount,
-      description: `Bonus Received (${sourceName}) - 30x Wager Required ($${addedWager.toFixed(2)})`,
+      description: `Bonus Received (${sourceName}) - 30x Wager Required (${addedWager.toFixed(2)})`,
       type: "reward",
     };
-    setTransactions((prev) => [newTx, ...prev].slice(0, 50));
+    const updatedTxs = [newTx, ...transactions].slice(0, 50);
+    setTransactions(updatedTxs);
+
+    persistPlayerState({
+      bonusBalance: nextBonus,
+      totalWagerRequired: nextWager,
+      transactions: updatedTxs
+    });
 
     setCustomToast({
       show: true,
       title: "🎁 Bonus Funds Received (30x)",
-      message: `$${bonusAmount.toFixed(2)} Bonus added to Locked Balance! $${addedWager.toFixed(2)} (30x) added to Wagering Requirement.`,
+      message: `${bonusAmount.toFixed(2)} Bonus added to Locked Balance! ${addedWager.toFixed(2)} (30x) added to Wagering Requirement.`,
       type: "info"
     });
     casinoAudio.playWin();
   };
 
   const handleAwardChips = (amount: number, description: string) => {
-    setChips((prev) => prev + amount);
+    const nextChips = chips + amount;
+    setChips(nextChips);
     setTotalWonSession((prev) => prev + amount);
-    addAuditLog(`CLAIMED BONUS: ${description} ($${amount.toLocaleString()})`, "success");
+    addAuditLog(`CLAIMED BONUS: ${description} (${amount.toLocaleString()})`, "success");
     const newTx: Transaction = {
       id: Math.random().toString(36).substring(2, 9),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -1164,7 +1311,14 @@ export default function App() {
       description,
       type: "reward",
     };
-    setTransactions((prev) => [newTx, ...prev].slice(0, 50));
+    const updatedTxs = [newTx, ...transactions].slice(0, 50);
+    setTransactions(updatedTxs);
+
+    persistPlayerState({
+      chips: nextChips,
+      peakChips: Math.max(peakChips, nextChips),
+      transactions: updatedTxs
+    });
   };
 
   // Request VIP Host commentary
@@ -1323,7 +1477,8 @@ export default function App() {
     finalAmount = amount;
 
     casinoAudio.playWin();
-    setChips((prev) => prev + finalAmount);
+    const nextChips = chips + finalAmount;
+    setChips(nextChips);
     setTotalWonSession((prev) => {
       const nextTotal = prev + finalAmount;
       localStorage.setItem("casino_session_net_wins", nextTotal.toString());
@@ -1339,7 +1494,34 @@ export default function App() {
     }
 
     setHousePool((prev) => Math.max(0, prev - finalAmount));
-    addAuditLog(`PLAYER: Win payout of $${finalAmount} credited on [${activeTab.toUpperCase()}] (${historyMsg})`, "warning");
+    addAuditLog(`PLAYER: Win payout of ${finalAmount} credited on [${activeTab.toUpperCase()}] (${historyMsg})`, "warning");
+
+    // Check if wagering requirement unlocked
+    let nextBonusBal = bonusBalance;
+    let nextWagerReq = totalWagerRequired;
+    let nextWagerProg = currentWagerProgress;
+    let finalRealChips = nextChips;
+
+    if (totalWagerRequired > 0 && currentWagerProgress >= totalWagerRequired && bonusBalance > 0) {
+      const bonusToConvert = bonusBalance;
+      finalRealChips = nextChips + bonusToConvert;
+      nextBonusBal = 0;
+      nextWagerReq = 0;
+      nextWagerProg = 0;
+
+      setBonusBalance(0);
+      setChips(finalRealChips);
+      setTotalWagerRequired(0);
+      setCurrentWagerProgress(0);
+
+      setCustomToast({
+        show: true,
+        title: "🎉 Wagering Requirement Complete!",
+        message: `Congratulations! Your 30x wagering requirement is complete. $${bonusToConvert.toFixed(2)} Bonus converted to Real Cash!`,
+        type: "success"
+      });
+      addAuditLog(`🎉 WAGERING COMPLETED: $${bonusToConvert.toFixed(2)} Bonus converted to Real Cash!`, "success");
+    }
 
     const newTx: Transaction = {
       id: Math.random().toString(36).substring(2, 9),
@@ -1348,7 +1530,17 @@ export default function App() {
       description: historyMsg,
       type: "win",
     };
-    setTransactions((prev) => [newTx, ...prev].slice(0, 50));
+    const updatedTxs = [newTx, ...transactions].slice(0, 50);
+    setTransactions(updatedTxs);
+
+    persistPlayerState({
+      chips: finalRealChips,
+      bonusBalance: nextBonusBal,
+      totalWagerRequired: nextWagerReq,
+      currentWagerProgress: nextWagerProg,
+      peakChips: Math.max(peakChips, finalRealChips),
+      transactions: updatedTxs
+    });
 
     // Telemetry Activity Log & Game Stats
     logPlayerActivity({
@@ -1357,7 +1549,7 @@ export default function App() {
       type: "gameplay",
       gameName: activeTab.toUpperCase(),
       gameId: activeTab,
-      action: `Won $${finalAmount.toLocaleString()} (${historyMsg})`,
+      action: `Won ${finalAmount.toLocaleString()} (${historyMsg})`,
       amount: finalAmount,
       outcome: "win"
     });
@@ -1374,61 +1566,88 @@ export default function App() {
   const handleLose = (amount: number, historyMsg: string, extraVal?: number) => {
     casinoAudio.playLose();
 
-    // 1. Dual Balance Deduction Priority: Locked Bonus Balance first, then Real Cash Balance
-    let bonusDeduct = 0;
-    let realDeduct = 0;
+    // 1. Deposit-First Model: Bets are deducted strictly from Main Real Balance (chips)
+    // Bonus funds remain safely locked in the Bonus Vault and are wagered towards completion.
+    const nextRealBal = Math.max(0, chips - amount);
+    let nextBonusBal = bonusBalance;
+    let nextWagerReq = totalWagerRequired;
+    let nextWagerProg = currentWagerProgress + amount;
 
-    if (bonusBalance >= amount) {
-      bonusDeduct = amount;
-      realDeduct = 0;
-    } else {
-      bonusDeduct = bonusBalance;
-      realDeduct = amount - bonusBalance;
-    }
-
-    const nextBonusBal = Math.max(0, bonusBalance - bonusDeduct);
-    const nextRealBal = Math.max(0, chips - realDeduct);
-
-    setBonusBalance(nextBonusBal);
-    setChips(nextRealBal);
     setLossesStreak((prev) => prev + 1);
-
     setHousePool((prev) => prev + amount);
-    addAuditLog(`PLAYER: Lost bet of $${amount} received on [${activeTab.toUpperCase()}] (${historyMsg})`, "info");
+    addAuditLog(`PLAYER: Placed bet of ${amount} on [${activeTab.toUpperCase()}] (${historyMsg})`, "info");
 
-    // 2. Wagering Progress Tracking: 100% of every bet placed adds directly to currentWagerProgress
-    const newProgress = currentWagerProgress + amount;
-    setCurrentWagerProgress(newProgress);
-
-    // 3. Auto-Unlock & Cash Conversion Check
-    if (totalWagerRequired > 0 && newProgress >= totalWagerRequired) {
+    // 3. Auto-Unlock & Cash Conversion Check when 30x wagering target is achieved
+    if (totalWagerRequired > 0 && nextWagerProg >= totalWagerRequired && nextBonusBal > 0) {
       const remainingBonusToConvert = nextBonusBal;
-      const finalRealCash = nextRealBal + remainingBonusToConvert;
-
-      setChips(finalRealCash);
-      setBonusBalance(0);
-      setTotalWagerRequired(0);
-      setCurrentWagerProgress(0);
+      const convertedRealBal = nextRealBal + remainingBonusToConvert;
+      nextBonusBal = 0;
+      nextWagerReq = 0;
+      nextWagerProg = 0;
 
       setCustomToast({
         show: true,
         title: "🎉 Wagering Requirement Complete!",
-        message: "Congratulations! Your wagering requirement is complete. Bonus funds converted to Real Cash!",
+        message: `Congratulations! Your 30x wagering requirement is complete. $${remainingBonusToConvert.toFixed(2)} Bonus converted to Real Cash!`,
         type: "success"
       });
 
       addAuditLog(`🎉 WAGERING COMPLETED: $${remainingBonusToConvert.toFixed(2)} Locked Bonus converted into Real Cash Balance!`, "success");
       casinoAudio.playWin();
+
+      setBonusBalance(0);
+      setChips(convertedRealBal);
+      setTotalWagerRequired(0);
+      setCurrentWagerProgress(0);
+
+      // Track cumulative loss towards $70 minimum threshold
+      const nextLoss = cumulativeLosses + amount;
+      let finalLosses = nextLoss;
+      if (nextLoss >= 70) {
+        const milestones = Math.floor(nextLoss / 70);
+        finalLosses = nextLoss % 70;
+        const bonusReward = milestones * 14;
+        setCumulativeLosses(finalLosses);
+        awardBonusFunds(bonusReward, "20% Loss Recovery Instant Cashback");
+      } else {
+        setCumulativeLosses(nextLoss);
+      }
+
+      const newTx: Transaction = {
+        id: Math.random().toString(36).substring(2, 9),
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        amount,
+        description: historyMsg,
+        type: "lose",
+      };
+      const updatedTxs = [newTx, ...transactions].slice(0, 50);
+      setTransactions(updatedTxs);
+
+      persistPlayerState({
+        chips: convertedRealBal,
+        bonusBalance: 0,
+        totalWagerRequired: 0,
+        currentWagerProgress: 0,
+        cumulativeLosses: finalLosses,
+        transactions: updatedTxs
+      });
+      return;
     }
+
+    setBonusBalance(nextBonusBal);
+    setChips(nextRealBal);
+    setTotalWagerRequired(nextWagerReq);
+    setCurrentWagerProgress(nextWagerProg);
 
     // 4. Track cumulative loss towards $70 minimum threshold for 20% ($14) instant cashback
     const nextLoss = cumulativeLosses + amount;
+    let finalLosses = nextLoss;
     if (nextLoss >= 70) {
       const milestones = Math.floor(nextLoss / 70);
-      const remainder = nextLoss % 70;
+      finalLosses = nextLoss % 70;
       const bonusReward = milestones * 14;
 
-      setCumulativeLosses(remainder);
+      setCumulativeLosses(finalLosses);
       awardBonusFunds(bonusReward, "20% Loss Recovery Instant Cashback");
     } else {
       setCumulativeLosses(nextLoss);
@@ -1441,7 +1660,17 @@ export default function App() {
       description: historyMsg,
       type: "lose",
     };
-    setTransactions((prev) => [newTx, ...prev].slice(0, 50));
+    const updatedTxs = [newTx, ...transactions].slice(0, 50);
+    setTransactions(updatedTxs);
+
+    persistPlayerState({
+      chips: nextRealBal,
+      bonusBalance: nextBonusBal,
+      totalWagerRequired: nextWagerReq,
+      currentWagerProgress: nextWagerProg,
+      cumulativeLosses: finalLosses,
+      transactions: updatedTxs
+    });
 
     // Telemetry Activity Log & Game Stats
     logPlayerActivity({
@@ -1450,7 +1679,7 @@ export default function App() {
       type: "gameplay",
       gameName: activeTab.toUpperCase(),
       gameId: activeTab,
-      action: `Placed $${amount.toLocaleString()} bet / Lost (${historyMsg})`,
+      action: `Placed ${amount.toLocaleString()} bet / Lost (${historyMsg})`,
       amount,
       outcome: "lose"
     });
@@ -1471,8 +1700,10 @@ export default function App() {
 
   const handleTakeLoan = () => {
     casinoAudio.playChipClink();
-    setChips((prev) => prev + 500);
-    setLoanCount((prev) => prev + 1);
+    const nextChips = chips + 500;
+    const nextLoanCount = loanCount + 1;
+    setChips(nextChips);
+    setLoanCount(nextLoanCount);
     setLossesStreak(0);
 
     addAuditLog(`PLAYER: Signed a $500 emergency loan agreement with Host Vegas Vance`, "warning");
@@ -1484,7 +1715,15 @@ export default function App() {
       description: "Signed $500 Vegas Vance emergency chip ledger",
       type: "loan",
     };
-    setTransactions((prev) => [newTx, ...prev].slice(0, 50));
+    const updatedTxs = [newTx, ...transactions].slice(0, 50);
+    setTransactions(updatedTxs);
+    
+    persistPlayerState({
+      chips: nextChips,
+      loanCount: nextLoanCount,
+      transactions: updatedTxs
+    });
+
     triggerVanceCommentary("loan");
 
     // Quest Progression
@@ -1517,6 +1756,11 @@ export default function App() {
   };
 
   const handleLaunchGame = (gameId: string, category: string = "all", gameName: string = "Vegas Live Game") => {
+    if (chips <= 0) {
+      setShowDepositRequiredModal(true);
+      casinoAudio.playClick();
+      return;
+    }
     setActiveLauncherGame({ id: gameId, name: gameName });
     changeTab("game_launcher");
   };
@@ -1551,21 +1795,36 @@ export default function App() {
           );
           
           if (found) {
-            // Found saved profile! Restore chips, peakChips, loanCount, transactions
+            // Found saved profile! Restore chips, peakChips, loanCount, transactions, wagering
             const restoredChips = found.chips !== undefined ? found.chips : 0;
             const restoredBonus = found.bonusBalance !== undefined ? found.bonusBalance : 200;
             const restoredPeak = found.peakChips !== undefined ? found.peakChips : restoredChips;
             const restoredLoans = found.loanCount !== undefined ? found.loanCount : 0;
+            const restoredWagerReq = found.totalWagerRequired !== undefined ? found.totalWagerRequired : (restoredBonus * 30);
+            const restoredWagerProg = found.currentWagerProgress !== undefined ? found.currentWagerProgress : 0;
+            const restoredLosses = found.cumulativeLosses !== undefined ? found.cumulativeLosses : 0;
             
             setChips(restoredChips);
             setBonusBalance(restoredBonus);
             setPeakChips(restoredPeak);
             setLoanCount(restoredLoans);
+            setTotalWagerRequired(restoredWagerReq);
+            setCurrentWagerProgress(restoredWagerProg);
+            setCumulativeLosses(restoredLosses);
             
+            lastKnownPlayerChipsRef.current = restoredChips;
+            lastKnownPlayerBonusRef.current = restoredBonus;
+            lastKnownPlayerWagerReqRef.current = restoredWagerReq;
+            lastKnownPlayerWagerProgRef.current = restoredWagerProg;
+            lastKnownPlayerLossesRef.current = restoredLosses;
+
             localStorage.setItem("casino_chips", String(restoredChips));
             localStorage.setItem("casino_bonus_balance", String(restoredBonus));
             localStorage.setItem("casino_peak_chips", String(restoredPeak));
             localStorage.setItem("casino_loans", String(restoredLoans));
+            localStorage.setItem("casino_total_wager_required", String(restoredWagerReq));
+            localStorage.setItem("casino_current_wager_progress", String(restoredWagerProg));
+            localStorage.setItem("casino_cumulative_losses", String(restoredLosses));
             
             if (found.transactions) {
               setTransactions(found.transactions);
@@ -1578,12 +1837,24 @@ export default function App() {
             // Fallback for new player account
             setChips(0);
             setBonusBalance(200);
+            setTotalWagerRequired(6000);
+            setCurrentWagerProgress(0);
+            setCumulativeLosses(0);
             setPeakChips(0);
             setLoanCount(0);
             setTransactions([]);
             
+            lastKnownPlayerChipsRef.current = 0;
+            lastKnownPlayerBonusRef.current = 200;
+            lastKnownPlayerWagerReqRef.current = 6000;
+            lastKnownPlayerWagerProgRef.current = 0;
+            lastKnownPlayerLossesRef.current = 0;
+
             localStorage.setItem("casino_chips", "0");
             localStorage.setItem("casino_bonus_balance", "200");
+            localStorage.setItem("casino_total_wager_required", "6000");
+            localStorage.setItem("casino_current_wager_progress", "0");
+            localStorage.setItem("casino_cumulative_losses", "0");
             localStorage.setItem("casino_peak_chips", "0");
             localStorage.setItem("casino_loans", "0");
             localStorage.removeItem("casino_transactions");
@@ -1834,17 +2105,51 @@ export default function App() {
                 <span className="font-bold">{time || "LOBBY"}</span>
               </div>
 
-              {/* Main Balance Display (Hide for Agent) */}
+              {/* Main Balance & Bonus Vault Display (Hide for Agent) */}
               {currentUser?.role !== "agent" && (
                 <div className="flex items-center gap-2">
-                  {/* Main Deposit Balance */}
-                  <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#0d131f] to-[#161f32] border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.25)] h-8 sm:h-auto justify-center" title="Main Deposit Balance (Used for Games, P2P Deposits & Withdrawals)">
+                  {/* Main Deposit Balance with 1-Click Deposit */}
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#0d131f] to-[#161f32] border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.25)] h-8 sm:h-auto justify-center" title="Main Real Cash Balance (Deposited Funds)">
                     <Coins className="h-4 w-4 text-amber-400 animate-bounce" />
                     <div className="font-mono text-xs flex items-center gap-1.5">
                       <span className="text-slate-400 font-bold text-[10px]">MAIN:</span>
                       <AnimatedChipsCounter value={chips} className="text-amber-300 font-black text-sm tracking-tight" />
                     </div>
+                    <button
+                      onClick={() => {
+                        casinoAudio.playChipClink();
+                        changeTab("stats");
+                      }}
+                      className="ml-1 px-2 py-0.5 rounded-lg bg-gradient-to-r from-[#00FF66] to-emerald-400 hover:from-[#00e65c] hover:to-emerald-500 text-slate-950 font-black text-[9px] font-mono uppercase tracking-wider transition-all cursor-pointer active:scale-95 shadow-[0_0_8px_rgba(0,255,102,0.4)]"
+                    >
+                      + DEPOSIT
+                    </button>
                   </div>
+
+                  {/* Locked Bonus Vault Pill with Wager Target */}
+                  {bonusBalance > 0 && (
+                    <div 
+                      onClick={() => {
+                        casinoAudio.playClick();
+                        changeTab("stats");
+                      }}
+                      className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-950/40 border border-amber-500/40 shadow-inner h-8 sm:h-auto cursor-pointer hover:border-amber-400 transition-all" 
+                      title={`Locked Bonus Vault: $${bonusBalance.toFixed(2)} USDT. Wagering Progress: $${currentWagerProgress.toFixed(0)} / $${totalWagerRequired.toFixed(0)} (30x Requirement)`}
+                    >
+                      <span className="text-xs">🔒</span>
+                      <div className="flex flex-col text-[10px] font-mono leading-tight">
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-400 font-bold">BONUS:</span>
+                          <span className="text-amber-300 font-black">${bonusBalance.toFixed(2)}</span>
+                        </div>
+                        {totalWagerRequired > 0 && (
+                          <div className="text-[8px] text-amber-400/80 font-bold flex items-center gap-1">
+                            <span>30x: {Math.min(100, Math.round((currentWagerProgress / totalWagerRequired) * 100))}%</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2740,6 +3045,17 @@ export default function App() {
             isOpen={isFloorRulesOpen}
             onClose={() => setIsFloorRulesOpen(false)}
             initialTab={floorRulesTab}
+          />
+
+          {/* Deposit Required to Play Modal */}
+          <DepositRequiredModal
+            isOpen={showDepositRequiredModal}
+            bonusBalance={bonusBalance}
+            onClose={() => setShowDepositRequiredModal(false)}
+            onDepositNow={() => {
+              setShowDepositRequiredModal(false);
+              changeTab("stats");
+            }}
           />
         </>
       )}

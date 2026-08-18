@@ -36,7 +36,8 @@ export const FortuneGemsGame: React.FC<FortuneGemsGameProps> = ({
 
   const handleSpinGems = () => {
     if (chips < betAmount) {
-      alert("Insufficient chips!");
+      setMessage("Insufficient chips! Please claim bonus or deposit chips to play.");
+      casinoAudio.playClick();
       return;
     }
     casinoAudio.playWheelSpin();

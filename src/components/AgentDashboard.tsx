@@ -179,12 +179,27 @@ export default function AgentDashboard({
   useEffect(() => {
     const syncMessages = () => {
       const stored = localStorage.getItem("casino_chat_messages_v1");
+      const storedP2P = localStorage.getItem("casino_p2p_chat_messages_v1");
+      let list: ChatMessage[] = [];
       if (stored) {
         try {
-          const parsed: ChatMessage[] = JSON.parse(stored);
-          setAllChatMessages(parsed);
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) list.push(...parsed);
         } catch (e) {}
       }
+      if (storedP2P) {
+        try {
+          const parsedP2P = JSON.parse(storedP2P);
+          if (Array.isArray(parsedP2P)) {
+            for (const m of parsedP2P) {
+              if (!list.some(x => x.id === m.id)) {
+                list.push(m);
+              }
+            }
+          }
+        } catch (e) {}
+      }
+      setAllChatMessages(list);
       setChatUpdateCounter((prev) => prev + 1);
     };
 
@@ -211,18 +226,49 @@ export default function AgentDashboard({
   // Filter messages for selected player
   const activePlayerThread = useMemo(() => {
     if (!selectedPlayerEmail) return [];
-    return allChatMessages.filter(m => 
-      m.senderId.toLowerCase() === selectedPlayerEmail.toLowerCase() || 
-      m.receiverId.toLowerCase() === selectedPlayerEmail.toLowerCase() ||
-      (m.senderRole === "system" && m.receiverId.toLowerCase() === selectedPlayerEmail.toLowerCase())
+    const targetEmail = selectedPlayerEmail.toLowerCase().trim();
+    
+    // Find any request IDs associated with this player
+    const playerReqIds = new Set(
+      bankingRequests
+        .filter(r => (r.playerEmail && r.playerEmail.toLowerCase().trim() === targetEmail) || (r.playerName && r.playerName.toLowerCase().trim() === targetEmail))
+        .map(r => r.id.toLowerCase())
     );
-  }, [allChatMessages, selectedPlayerEmail]);
+
+    return allChatMessages.filter(m => {
+      const sId = (m.senderId || "").toLowerCase().trim();
+      const rId = (m.receiverId || "").toLowerCase().trim();
+      return (
+        sId === targetEmail || 
+        rId === targetEmail ||
+        playerReqIds.has(rId) ||
+        playerReqIds.has(sId) ||
+        (m.senderRole === "system" && (rId === targetEmail || playerReqIds.has(rId)))
+      );
+    });
+  }, [allChatMessages, selectedPlayerEmail, bankingRequests]);
 
   // Aggregate chats to list players
   const playerChatsList = useMemo(() => {
     const map = new Map<string, { email: string; name: string; latestMsg: string; timestamp: string; unreadCount: number }>();
     
-    // Sort all messages oldest to newest
+    // 1. Include every player with a banking request assigned to this agent (or global)
+    bankingRequests.forEach(req => {
+      const pEmail = (req.playerEmail || req.playerName || "").toLowerCase().trim();
+      if (pEmail && isAgentMatch(req)) {
+        if (!map.has(pEmail)) {
+          map.set(pEmail, {
+            email: pEmail,
+            name: req.playerName || req.playerEmail || "Player",
+            latestMsg: `Order ${req.id} (${req.type.toUpperCase()}) - $${req.amount.toLocaleString()}`,
+            timestamp: req.time || req.date,
+            unreadCount: 0
+          });
+        }
+      }
+    });
+
+    // 2. Sort all messages oldest to newest and map to players
     const sorted = [...allChatMessages].sort((a, b) => a.id.localeCompare(b.id));
 
     sorted.forEach(m => {
@@ -232,22 +278,34 @@ export default function AgentDashboard({
         pEmail = m.senderId;
         pName = m.senderName;
       } else if (m.receiverId !== "all_agents" && m.senderRole !== "system") {
-        pEmail = m.receiverId;
-        pName = "Player"; // Fallback name
-      } else {
-        // System message or general broadcast
-        pEmail = m.receiverId;
-        pName = "Player";
+        const matchingReq = bankingRequests.find(r => r.id === m.receiverId || (r.playerEmail && r.playerEmail.toLowerCase().trim() === m.receiverId.toLowerCase().trim()));
+        if (matchingReq) {
+          pEmail = matchingReq.playerEmail || matchingReq.playerName || m.receiverId;
+          pName = matchingReq.playerName || "Player";
+        } else {
+          pEmail = m.receiverId;
+          pName = "Player";
+        }
+      } else if (m.receiverId !== "all_agents") {
+        const matchingReq = bankingRequests.find(r => r.id === m.receiverId || (r.playerEmail && r.playerEmail.toLowerCase().trim() === m.receiverId.toLowerCase().trim()));
+        if (matchingReq) {
+          pEmail = matchingReq.playerEmail || matchingReq.playerName || m.receiverId;
+          pName = matchingReq.playerName || "Player";
+        } else {
+          pEmail = m.receiverId;
+          pName = "Player";
+        }
       }
 
       if (!pEmail || pEmail === "all_agents") return;
+      const cleanEmail = pEmail.toLowerCase().trim();
 
-      const current = map.get(pEmail);
+      const current = map.get(cleanEmail);
       const isUnread = m.senderRole === "player" && !m.read;
 
-      map.set(pEmail, {
-        email: pEmail,
-        name: m.senderRole === "player" ? m.senderName : (current?.name || pName),
+      map.set(cleanEmail, {
+        email: cleanEmail,
+        name: m.senderRole === "player" ? m.senderName : (current?.name || pName || cleanEmail),
         latestMsg: m.message,
         timestamp: m.timestamp,
         unreadCount: (current?.unreadCount || 0) + (isUnread ? 1 : 0)
@@ -255,7 +313,7 @@ export default function AgentDashboard({
     });
 
     return Array.from(map.values());
-  }, [allChatMessages]);
+  }, [allChatMessages, bankingRequests, activeAgent]);
 
   useEffect(() => {
     if (!selectedPlayerEmail && playerChatsList.length > 0) {
@@ -629,29 +687,22 @@ export default function AgentDashboard({
       return;
     }
 
-    // Sync local state for immediate UI feedback
-    const updatedRequests = bankingRequests.map(r => {
-      if (r.id === reqId) {
-        return { ...r, status: action === "approve" ? ("approved" as const) : ("rejected" as const), approvedBy: activeAgent.id };
-      }
-      return r;
-    });
-
-    setBankingRequests(updatedRequests);
-    localStorage.setItem("casino_banking_requests_v1", JSON.stringify(updatedRequests));
+    // Refresh banking requests from database
+    setBankingRequests(getBankingRequests() as any);
 
     // Send chat message notification
-    if (req.playerEmail) {
+    if (req.playerEmail || req.playerName) {
+      const targetEmail = (req.playerEmail || req.playerName || "").toLowerCase().trim();
       const finalChatMsg: ChatMessage = {
         id: "msg-final-" + Date.now(),
         senderId: activeAgent.id || "agent-1",
         senderName: activeAgent.name,
         senderRole: "agent",
-        receiverId: req.playerEmail.toLowerCase(),
+        receiverId: targetEmail,
         message: action === "approve"
           ? (req.type === "deposit" 
               ? `🎉 PAYMENT VERIFIED & CHIPS RELEASED SUCCESSFULLY!\n\nAgent ${activeAgent.name} has verified your $${req.amount.toLocaleString()} mobile banking transfer and released your chips to your wallet. Good luck on the tables! ✨`
-              : `🎉 WITHDRAWAL PAYOUT APPROVED!\n\nAgent ${activeAgent.name} has sent $${req.amount.toLocaleString()} to your ${req.mobileBankingService} number (${req.mobileBankingNumber}). Check your mobile statement!`)
+              : `🎉 WITHDRAWAL PAYOUT APPROVED!\n\nAgent ${activeAgent.name} has sent $${req.amount.toLocaleString()} to your ${req.mobileBankingService || "Wallet"} number (${req.mobileBankingNumber || ""}). Check your mobile statement!`)
           : `❌ TRANSACTION REJECTED\n\nAgent ${activeAgent.name} has rejected request [${reqId}]. ${req.type === "withdraw" ? "Your chips have been restored to your wallet." : "Please verify payment details or contact support."}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         read: false
@@ -671,19 +722,25 @@ export default function AgentDashboard({
   const isAgentMatch = (r: BankingRequest) => {
     if (!activeAgent) return true;
     
-    // Global Universal hub agent can view all requests if needed
-    if (activeAgent.id === "p2p-agent-global" || activeAgent.id === "agent-global-universal") return true;
+    // Global Universal hub agent or Admin can view all requests
+    if (
+      activeAgent.id === "p2p-agent-global" || 
+      activeAgent.id === "agent-global-universal" ||
+      (activeAgent as any).role === "admin"
+    ) {
+      return true;
+    }
 
     const reqAgentId = (r.agentId || "").toLowerCase().trim();
     const reqAgentName = (r.agentName || "").toLowerCase().trim();
     const myAgentId = (activeAgent.id || "").toLowerCase().trim();
     const myAgentName = (activeAgent.name || "").toLowerCase().trim();
 
-    // If request has no specific agent assigned (legacy/fallback), match by default
+    // If request has no specific agent assigned (legacy/crypto/fallback), match by default
     if (!reqAgentId && !reqAgentName) return true;
 
-    // Check exact match by agent ID or agent Name
-    const idMatch = Boolean(reqAgentId && myAgentId && reqAgentId === myAgentId);
+    // Check exact match or partial match by agent ID or agent Name
+    const idMatch = Boolean(reqAgentId && myAgentId && (reqAgentId === myAgentId || reqAgentId.includes(myAgentId) || myAgentId.includes(reqAgentId)));
     const nameMatch = Boolean(reqAgentName && myAgentName && (reqAgentName.includes(myAgentName) || myAgentName.includes(reqAgentName)));
 
     return idMatch || nameMatch;

@@ -1,4 +1,4 @@
-import { DEFAULT_PLAYERS, RegisteredPlayer } from "../constants/defaultPlayers";
+import { DEFAULT_PLAYERS, RegisteredPlayer, recordRevokedPlayerEmail, clearRevokedPlayerEmail } from "../constants/defaultPlayers";
 import { DEFAULT_BANKING_REQUESTS, BankingRequest } from "../constants/bankingRequests";
 import { DEFAULT_P2P_AGENTS, P2PAgent } from "../constants/p2pAgents";
 import { SystemConfig } from "../types";
@@ -296,8 +296,12 @@ export async function fetchCloudPlayersFromD1(): Promise<RegisteredPlayer[]> {
  */
 export async function initDatabaseDefaults() {
   try {
-    // 1. First await Cloudflare D1 sync so new devices receive cloud agents/config BEFORE writing any local fallback defaults
-    await syncCloudConfigFromD1().catch(() => {});
+    // 1. First await Cloudflare D1 sync so new devices receive cloud agents/config/players BEFORE writing any local fallback defaults
+    await Promise.allSettled([
+      syncCloudConfigFromD1(),
+      fetchCloudPlayersFromD1(),
+      fetchCloudSubAdminsFromD1()
+    ]);
 
     // A. Players
     const localPlayers = localStorage.getItem("registered_players_v1");
@@ -308,7 +312,7 @@ export async function initDatabaseDefaults() {
     // B. Banking Requests
     const localReqs = localStorage.getItem("casino_banking_requests_v1");
     if (!localReqs) {
-      localStorage.setItem("casino_banking_requests_v1", JSON.stringify(DEFAULT_BANKING_REQUESTS));
+      localStorage.setItem("casino_banking_requests_v1", JSON.stringify([]));
     }
 
     // C. P2P Agents (Only set hardcoded default if D1 did not supply any agents)
@@ -332,9 +336,10 @@ export async function initDatabaseDefaults() {
 export async function savePlayerToDatabase(player: RegisteredPlayer) {
   if (!player || !player.email) return;
   try {
+    clearRevokedPlayerEmail(player.email);
     const existing = localStorage.getItem("registered_players_v1");
     let list: RegisteredPlayer[] = existing ? JSON.parse(existing) : [...DEFAULT_PLAYERS];
-    const index = list.findIndex(p => p.email.toLowerCase() === player.email.toLowerCase());
+    const index = list.findIndex(p => p.email && p.email.toLowerCase().trim() === player.email.toLowerCase().trim());
     if (index >= 0) {
       list[index] = player;
     } else {
@@ -342,6 +347,7 @@ export async function savePlayerToDatabase(player: RegisteredPlayer) {
     }
     localStorage.setItem("registered_players_v1", JSON.stringify(list));
     window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new CustomEvent("players_updated"));
 
     // Cloudflare D1 Async Sync
     fetch("/api/admin/players", {
@@ -358,15 +364,60 @@ export async function saveAllPlayersToDatabase(players: RegisteredPlayer[]) {
   try {
     localStorage.setItem("registered_players_v1", JSON.stringify(players));
     window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new CustomEvent("players_updated"));
 
     // Cloudflare D1 Async Sync
     fetch("/api/admin/players", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ players }),
+      body: JSON.stringify({ players, replaceAll: true }),
     }).catch((e) => console.warn("D1 All Players Sync Notice:", e));
   } catch (e) {
     console.error("Error saving all players to database:", e);
+  }
+}
+
+export async function deletePlayerFromDatabase(email: string) {
+  if (!email || typeof email !== "string") return;
+  const cleanEmail = email.toLowerCase().trim();
+  try {
+    recordRevokedPlayerEmail(cleanEmail);
+
+    const existing = localStorage.getItem("registered_players_v1");
+    let list: RegisteredPlayer[] = [];
+    if (existing) {
+      try {
+        const parsed = JSON.parse(existing);
+        if (Array.isArray(parsed)) {
+          list = parsed.filter(p => p && p.email && p.email.toLowerCase().trim() !== cleanEmail);
+        }
+      } catch (e) {}
+    }
+    localStorage.setItem("registered_players_v1", JSON.stringify(list));
+
+    // Terminate session if revoked user is currently authenticated
+    try {
+      const userStr = localStorage.getItem("casino_user");
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        if (u?.email && u.email.toLowerCase().trim() === cleanEmail) {
+          localStorage.removeItem("casino_user");
+          localStorage.removeItem("casino_token");
+        }
+      }
+    } catch (e) {}
+
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new CustomEvent("players_updated"));
+
+    // Server API Deletion & Sync
+    fetch("/api/admin/players/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail }),
+    }).catch((e) => console.warn("D1 Player Delete Notice:", e));
+  } catch (e) {
+    console.error("Error deleting player from database:", e);
   }
 }
 

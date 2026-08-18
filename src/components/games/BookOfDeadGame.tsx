@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Coins, Play, Sparkles, BookOpen, Crown, RotateCcw, Skull, Flame } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { casinoAudio } from "../../lib/audioService";
+import { evaluateLiveGameRound } from "../../constants/liveGameConfig";
 
 interface BookOfDeadGameProps {
   chips: number;
@@ -93,18 +94,33 @@ export const BookOfDeadGame: React.FC<BookOfDeadGameProps> = ({
 
     casinoAudio.playWheelSpin(0.1);
 
+    const isWinAllowed = evaluateLiveGameRound(undefined, rtpBias);
+
     // 5x3 Grid Spin
     let currentGrid: CellItem[][] = [];
     let scatterCount = 0;
 
-    for (let c = 0; c < 5; c++) {
-      const col: CellItem[] = [];
-      for (let r = 0; r < 3; r++) {
-        const item = getRandomCell();
-        if (item.isTombScatter) scatterCount++;
-        col.push(item);
+    if (!isWinAllowed && !isFreeSpin) {
+      // Force non-winning grid with varied symbols and at most 1 scatter
+      const baseSyms = EGYPTIAN_SYMBOLS.slice(4); // low-card symbols
+      for (let c = 0; c < 5; c++) {
+        const col: CellItem[] = [];
+        for (let r = 0; r < 3; r++) {
+          const s = baseSyms[(c + r) % baseSyms.length];
+          col.push({ uid: Math.random().toString(), symbolId: s.id });
+        }
+        currentGrid.push(col);
       }
-      currentGrid.push(col);
+    } else {
+      for (let c = 0; c < 5; c++) {
+        const col: CellItem[] = [];
+        for (let r = 0; r < 3; r++) {
+          const item = getRandomCell();
+          if (item.isTombScatter) scatterCount++;
+          col.push(item);
+        }
+        currentGrid.push(col);
+      }
     }
 
     setGrid(currentGrid);

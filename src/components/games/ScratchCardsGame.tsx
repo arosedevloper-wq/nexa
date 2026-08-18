@@ -29,7 +29,8 @@ export const ScratchCardsGame: React.FC<ScratchCardsGameProps> = ({
 
   const handleBuyCard = () => {
     if (chips < betAmount) {
-      alert("Insufficient chips!");
+      setMessage("Insufficient chips! Please claim bonus or deposit chips to play.");
+      casinoAudio.playClick();
       return;
     }
     casinoAudio.playClick();

@@ -51,7 +51,8 @@ export const SlotsEngine: React.FC<SlotsEngineProps> = ({
 
   const spinReels = () => {
     if (chips < bet) {
-      alert("Insufficient chips balance!");
+      setLastWinMsg("Insufficient chips balance! Please top up or claim daily rewards.");
+      casinoAudio.playClick();
       return;
     }
 

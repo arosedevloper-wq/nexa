@@ -43,7 +43,8 @@ export const TableEngine: React.FC<TableEngineProps> = ({
 
   const playTableHand = () => {
     if (chips < bet) {
-      alert("Insufficient chips balance!");
+      setGameResult("Insufficient chips balance! Please top up or claim daily rewards.");
+      casinoAudio.playClick();
       return;
     }
 

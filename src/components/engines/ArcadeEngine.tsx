@@ -31,7 +31,8 @@ export const ArcadeEngine: React.FC<ArcadeEngineProps> = ({
 
   const runArcadeRound = () => {
     if (chips < bet) {
-      alert("Insufficient chips balance!");
+      setResultMsg("Insufficient chips balance! Please top up or claim daily rewards.");
+      casinoAudio.playClick();
       return;
     }
 

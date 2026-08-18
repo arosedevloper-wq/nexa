@@ -358,7 +358,7 @@ export function sendTransactionChatMessage(
     const cappedForReq = existingForReq.slice(-15);
     safeSetLocalStorage(`casino_tx_chat_${fullMsg.requestId}`, JSON.stringify(cappedForReq));
 
-    // 2. Save to global P2P chat store for cross-tab / agent desk sync (cap at last 15, strip images for older items)
+    // 2. Save to global P2P chat store for cross-tab / agent desk sync (cap at last 500, strip images for older items)
     const globalRaw = localStorage.getItem("casino_p2p_chat_messages_v1");
     let globalList: any[] = [];
     if (globalRaw) {
@@ -371,8 +371,8 @@ export function sendTransactionChatMessage(
     if (!globalList.some((m: any) => m.id === fullMsg.id)) {
       globalList.push(cleanMsgForStorage);
     }
-    const cappedGlobal = globalList.slice(-15).map((m: any, idx: number, arr: any[]) => {
-      if (idx < arr.length - 2 && m.attachmentUrl) {
+    const cappedGlobal = globalList.slice(-500).map((m: any, idx: number, arr: any[]) => {
+      if (idx < arr.length - 10 && m.attachmentUrl) {
         const c = { ...m };
         delete c.attachmentUrl;
         delete c.imageBase64;
@@ -383,7 +383,7 @@ export function sendTransactionChatMessage(
     });
     safeSetLocalStorage("casino_p2p_chat_messages_v1", JSON.stringify(cappedGlobal));
 
-    // 3. Sync to legacy casino_chat_messages_v1 store for backward compatibility (cap at last 10, no heavy images)
+    // 3. Sync to legacy casino_chat_messages_v1 store for backward compatibility (cap at last 500, no heavy images)
     const legacyRaw = localStorage.getItem("casino_chat_messages_v1");
     let legacyList: any[] = [];
     if (legacyRaw) {
@@ -399,7 +399,7 @@ export function sendTransactionChatMessage(
       timestamp: fullMsg.timestamp,
       read: fullMsg.read || false,
     });
-    const cappedLegacy = legacyList.slice(-10);
+    const cappedLegacy = legacyList.slice(-500);
     safeSetLocalStorage("casino_chat_messages_v1", JSON.stringify(cappedLegacy));
 
     // 4. Dispatch events for real-time UI updates
