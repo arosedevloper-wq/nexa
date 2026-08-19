@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Coins, Play, Sparkles, ShieldAlert, Crown, RotateCcw, Lock, Unlock, Flame, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { casinoAudio } from "../../lib/audioService";
+import { evaluateLiveGameRound } from "../../constants/liveGameConfig";
 
 interface SanQuentinGameProps {
   chips: number;
@@ -114,22 +115,37 @@ export const SanQuentinGame: React.FC<SanQuentinGameProps> = ({
 
     casinoAudio.playWheelSpin(0.1);
 
+    const isWinAllowed = evaluateLiveGameRound(undefined, rtpBias);
+
     // 1. Generate 5x3 main grid
     let currentGrid: CellItem[][] = [];
     let scatterCount = 0;
     let totalXWaysFactor = 1;
 
-    for (let c = 0; c < 5; c++) {
-      const col: CellItem[] = [];
-      for (let r = 0; r < 3; r++) {
-        const item = getRandomCell();
-        if (item.isScatter) scatterCount++;
-        if (item.isXWays && item.xWaysMultiplier) {
-          totalXWaysFactor *= item.xWaysMultiplier;
+    if (!isWinAllowed && !isFreeSpin) {
+      // Force non-matching low inmate grid
+      const baseInmates = INMATES.slice(2);
+      for (let c = 0; c < 5; c++) {
+        const col: CellItem[] = [];
+        for (let r = 0; r < 3; r++) {
+          const s = baseInmates[(c * 2 + r) % baseInmates.length];
+          col.push({ uid: Math.random().toString(), symbolId: s.id });
         }
-        col.push(item);
+        currentGrid.push(col);
       }
-      currentGrid.push(col);
+    } else {
+      for (let c = 0; c < 5; c++) {
+        const col: CellItem[] = [];
+        for (let r = 0; r < 3; r++) {
+          const item = getRandomCell();
+          if (item.isScatter) scatterCount++;
+          if (item.isXWays && item.xWaysMultiplier) {
+            totalXWaysFactor *= item.xWaysMultiplier;
+          }
+          col.push(item);
+        }
+        currentGrid.push(col);
+      }
     }
 
     // 2. Unlock Enhancers based on scatters or free spin mode

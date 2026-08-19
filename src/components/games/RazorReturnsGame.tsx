@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Coins, Play, Sparkles, Zap, RotateCcw, Crown, Anchor, Waves } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { casinoAudio } from "../../lib/audioService";
+import { evaluateLiveGameRound } from "../../constants/liveGameConfig";
 
 interface RazorReturnsGameProps {
   chips: number;
@@ -105,22 +106,37 @@ export const RazorReturnsGame: React.FC<RazorReturnsGameProps> = ({
 
     casinoAudio.playWheelSpin(0.1);
 
+    const isWinAllowed = evaluateLiveGameRound(undefined, rtpBias);
+
     // 5x5 Grid Spin
     let currentGrid: CellItem[][] = [];
     let torpedoScatters = 0;
     let instantCoinPayout = 0;
     let mysteryCount = 0;
 
-    for (let c = 0; c < 5; c++) {
-      const col: CellItem[] = [];
-      for (let r = 0; r < 5; r++) {
-        const item = getRandomCell();
-        if (item.isTorpedoScatter) torpedoScatters++;
-        if (item.coinValue) instantCoinPayout += currentBet * item.coinValue;
-        if (item.isSeaweedMystery) mysteryCount++;
-        col.push(item);
+    if (!isWinAllowed && !isFreeSpin) {
+      // Force non-matching low tier grid
+      const baseSyms = SYMBOLS.slice(3);
+      for (let c = 0; c < 5; c++) {
+        const col: CellItem[] = [];
+        for (let r = 0; r < 5; r++) {
+          const s = baseSyms[(c * 3 + r) % baseSyms.length];
+          col.push({ uid: Math.random().toString(), symbolId: s.id });
+        }
+        currentGrid.push(col);
       }
-      currentGrid.push(col);
+    } else {
+      for (let c = 0; c < 5; c++) {
+        const col: CellItem[] = [];
+        for (let r = 0; r < 5; r++) {
+          const item = getRandomCell();
+          if (item.isTorpedoScatter) torpedoScatters++;
+          if (item.coinValue) instantCoinPayout += currentBet * item.coinValue;
+          if (item.isSeaweedMystery) mysteryCount++;
+          col.push(item);
+        }
+        currentGrid.push(col);
+      }
     }
 
     setGrid(currentGrid);

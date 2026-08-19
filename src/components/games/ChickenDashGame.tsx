@@ -93,7 +93,7 @@ export const ChickenDashGame: React.FC<ChickenDashGameProps> = ({
 
     // Evaluate trap step
     const isWin = evaluateLiveGameRound();
-    const trap = isWin ? Math.floor(6 + Math.random() * 4) : Math.floor(1 + Math.random() * 4);
+    const trap = isWin ? Math.floor(4 + Math.random() * 3) : Math.floor(1 + Math.random() * 2);
     setTrapStep(trap);
 
     setCurrentStep(0);

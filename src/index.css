@@ -283,22 +283,57 @@ body.theme-midnight {
   animation: bannerAuraBreathing 4s infinite ease-in-out;
 }
 
-/* Global mobile horizontal scrolling and blank space protection */
-html, body, #root {
-  max-width: 100%;
-  overflow-x: hidden;
+/* Global mobile & desktop smooth scrolling compatibility */
+html {
   background-color: #080B11;
   color: #F3F4F6;
   -webkit-tap-highlight-color: transparent;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  width: 100%;
+  max-width: 100%;
+  background-color: #080B11;
+  color: #F3F4F6;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 canvas, .game-canvas, button, [role="button"] {
-  touch-action: manipulation;
-  user-select: none;
+  touch-action: pan-y manipulation;
   -webkit-user-select: none;
+  user-select: none;
 }
 
 @utility glow-neon {

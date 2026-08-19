@@ -113,24 +113,39 @@ export const WantedDeadOrAWildGame: React.FC<WantedDeadOrAWildGameProps> = ({
 
     casinoAudio.playWheelSpin(0.1);
 
+    const isWinAllowed = evaluateLiveGameRound(undefined, rtpBias);
+
     // 5x5 spin reel generation
     let currentGrid: CellItem[][] = [];
     let duelScatters = 0;
     let trainScatters = 0;
     const collectedVSMults: number[] = [];
 
-    for (let c = 0; c < 5; c++) {
-      const col: CellItem[] = [];
-      for (let r = 0; r < 5; r++) {
-        const item = getRandomCell();
-        if (item.isScatterVS) duelScatters++;
-        if (item.isScatterTrain) trainScatters++;
-        if (item.isVS && item.vsMultiplier) {
-          collectedVSMults.push(item.vsMultiplier);
+    if (!isWinAllowed && !isFreeSpin) {
+      // Force low-paying non-matching grid
+      const baseSyms = SYMBOLS.slice(4);
+      for (let c = 0; c < 5; c++) {
+        const col: CellItem[] = [];
+        for (let r = 0; r < 5; r++) {
+          const s = baseSyms[(c * 2 + r) % baseSyms.length];
+          col.push({ uid: Math.random().toString(), symbolId: s.id });
         }
-        col.push(item);
+        currentGrid.push(col);
       }
-      currentGrid.push(col);
+    } else {
+      for (let c = 0; c < 5; c++) {
+        const col: CellItem[] = [];
+        for (let r = 0; r < 5; r++) {
+          const item = getRandomCell();
+          if (item.isScatterVS) duelScatters++;
+          if (item.isScatterTrain) trainScatters++;
+          if (item.isVS && item.vsMultiplier) {
+            collectedVSMults.push(item.vsMultiplier);
+          }
+          col.push(item);
+        }
+        currentGrid.push(col);
+      }
     }
 
     setGrid(currentGrid);

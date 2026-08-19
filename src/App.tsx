@@ -70,6 +70,7 @@ import { VegasHighRollerSuite } from "./components/VegasHighRollerSuite";
 import GameLauncher from "./components/games/GameLauncher";
 import { PromotionalBannerBar } from "./components/PromotionalBannerBar";
 import { PromotionalHeroBanner } from "./components/PromotionalHeroBanner";
+import PaymentPartnersBanner from "./components/PaymentPartnersBanner";
 import DepositRequiredModal from "./components/DepositRequiredModal";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -928,9 +929,24 @@ export default function App() {
           (pEmail && p.email && p.email.toLowerCase() === pEmail) || 
           (pPhoneClean && p.phoneNumber && p.phoneNumber.replace(/\D/g, "") === pPhoneClean)
         );
-        if (found && found.chips !== undefined) {
-          setChips(found.chips);
-          lastKnownPlayerChipsRef.current = found.chips;
+        if (found) {
+          if (found.chips !== undefined) {
+            setChips(found.chips);
+            lastKnownPlayerChipsRef.current = found.chips;
+          }
+          if (found.bonusBalance !== undefined) {
+            setBonusBalance(found.bonusBalance);
+          }
+          if (found.quests && Array.isArray(found.quests) && found.quests.length > 0) {
+            setQuests(found.quests);
+          } else if (pEmail) {
+            const userSavedQuests = localStorage.getItem(`casino_quests_${pEmail}`);
+            if (userSavedQuests) {
+              try {
+                setQuests(JSON.parse(userSavedQuests));
+              } catch (e) {}
+            }
+          }
         }
       } catch (e) {
         console.error("Error loading player chips from registered_players_v1:", e);
@@ -1115,7 +1131,7 @@ export default function App() {
 
   const updateQuestProgress = (category: Quest["category"], valToAdd: number = 1, isAbsolute: boolean = false) => {
     setQuests((prevQuests) => {
-      return prevQuests.map((quest) => {
+      const updated = prevQuests.map((quest) => {
         if (quest.claimed) return quest;
         if (quest.category === category) {
           const prevCompleted = quest.current >= quest.target;
@@ -1144,7 +1160,38 @@ export default function App() {
         }
         return quest;
       });
+
+      // Save user-scoped quest progress for global persistence
+      if (currentUser?.email) {
+        localStorage.setItem(`casino_quests_${currentUser.email.toLowerCase()}`, JSON.stringify(updated));
+      }
+      localStorage.setItem("casino_quests_v3", JSON.stringify(updated));
+
+      return updated;
     });
+  };
+
+  const recordGameQuestProgression = (historyMsg: string, extraVal?: number) => {
+    const raw = `${activeTab} ${activeLauncherGame?.id || ""} ${activeLauncherGame?.name || ""} ${historyMsg}`.toLowerCase();
+    
+    if (raw.includes("blackjack") || raw.includes("21") || raw.includes("dealer")) {
+      updateQuestProgress("blackjack", 1);
+    } else if (raw.includes("roulette") || raw.includes("crazy time") || raw.includes("monopoly") || raw.includes("wheel")) {
+      updateQuestProgress("roulette", 1);
+    } else if (raw.includes("poker") || raw.includes("baccarat") || raw.includes("teen patti") || raw.includes("rummy") || raw.includes("callbreak") || raw.includes("dragon tiger") || raw.includes("sic bo") || raw.includes("hi-lo") || raw.includes("coin flip") || raw.includes("hilo") || raw.includes("coinflip") || raw.includes("ludo")) {
+      updateQuestProgress("videopoker", 1);
+    } else if (raw.includes("crash") || raw.includes("rocket") || raw.includes("chicken") || raw.includes("frog") || raw.includes("dash") || raw.includes("plinko") || raw.includes("mines")) {
+      if (extraVal !== undefined) {
+        updateQuestProgress("crash", extraVal);
+      } else {
+        const match = historyMsg.match(/(\d+(\.\d+)?)x/i);
+        const mult = match ? parseFloat(match[1]) : 1;
+        updateQuestProgress("crash", mult);
+      }
+    } else {
+      // Default to slots for slot games, reels, spins, or general casino game play
+      updateQuestProgress("slots", 1);
+    }
   };
 
   const handleClaimQuestReward = (questId: string) => {
@@ -1556,11 +1603,7 @@ export default function App() {
     recordGameStats(activeTab, 0, finalAmount);
 
     // Quest Progression
-    if (activeTab === "slots") updateQuestProgress("slots", 1);
-    else if (activeTab === "blackjack") updateQuestProgress("blackjack", 1);
-    else if (activeTab === "roulette") updateQuestProgress("roulette", 1);
-    else if (activeTab === "videopoker") updateQuestProgress("videopoker", 1);
-    else if (activeTab === "crash" && extraVal !== undefined) updateQuestProgress("crash", extraVal);
+    recordGameQuestProgression(historyMsg, extraVal);
   };
 
   const handleLose = (amount: number, historyMsg: string, extraVal?: number) => {
@@ -1691,11 +1734,7 @@ export default function App() {
     }
 
     // Quest Progression
-    if (activeTab === "slots") updateQuestProgress("slots", 1);
-    else if (activeTab === "blackjack") updateQuestProgress("blackjack", 1);
-    else if (activeTab === "roulette") updateQuestProgress("roulette", 1);
-    else if (activeTab === "videopoker") updateQuestProgress("videopoker", 1);
-    else if (activeTab === "crash" && extraVal !== undefined) updateQuestProgress("crash", extraVal);
+    recordGameQuestProgression(historyMsg, extraVal);
   };
 
   const handleTakeLoan = () => {
@@ -2430,6 +2469,9 @@ export default function App() {
                   changeTab("stats");
                 }}
               />
+
+              {/* Trusted Payment Partners & Security Trust Badge Banner */}
+              <PaymentPartnersBanner onOpenDeposit={() => changeTab("stats")} />
             </div>
           )}
 

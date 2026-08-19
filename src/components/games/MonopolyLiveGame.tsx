@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Coins, Play, Sparkles, Trophy, Dices, RotateCcw, Crown, ShieldAlert, Gift } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { casinoAudio } from "../../lib/audioService";
+import { evaluateLiveGameRound } from "../../constants/liveGameConfig";
 
 interface MonopolyLiveGameProps {
   chips: number;
@@ -111,7 +112,21 @@ export const MonopolyLiveGame: React.FC<MonopolyLiveGameProps> = ({
     casinoAudio.playWheelSpin(0.1);
 
     // Spin wheel
-    const winIdx = Math.floor(Math.random() * WHEEL_SEGMENTS.length);
+    const isWinAllowed = evaluateLiveGameRound(undefined, rtpBias);
+    let winIdx: number;
+    if (!isWinAllowed) {
+      // Find segments where the user did NOT place a bet
+      const losingIndices = WHEEL_SEGMENTS.map((s, idx) => ({ s, idx })).filter(
+        (item) => !bets[item.s.type] || bets[item.s.type] <= 0
+      );
+      if (losingIndices.length > 0) {
+        winIdx = losingIndices[Math.floor(Math.random() * losingIndices.length)].idx;
+      } else {
+        winIdx = Math.floor(Math.random() * WHEEL_SEGMENTS.length);
+      }
+    } else {
+      winIdx = Math.floor(Math.random() * WHEEL_SEGMENTS.length);
+    }
     const seg = WHEEL_SEGMENTS[winIdx];
 
     const segmentAngle = 360 / WHEEL_SEGMENTS.length;
