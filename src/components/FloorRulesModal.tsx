@@ -152,7 +152,7 @@ export default function FloorRulesModal({
                     </button>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                    NexaSpin Crypto Casino imposes zero processing or deposit fees across all supported payment gateways (USDT TRC20, BEP20, Binance Pay, bKash, Nagad, Rocket).
+                    NexaSpin Crypto Casino imposes zero processing or deposit fees across all supported payment gateways (USDT TRC20, BEP20, Binance Pay, BTC, ETH, SOL).
                   </p>
                 </div>
 

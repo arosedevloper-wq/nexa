@@ -1914,7 +1914,7 @@ export default function LoginScreen({ onLoginSuccess, onAddAuditLog }: LoginScre
               <span className="text-[9px] font-mono font-bold text-slate-200 uppercase tracking-tight">
                 60s Cashout
               </span>
-              <span className="text-[8px] font-mono text-slate-400 font-semibold">bKash • Nagad</span>
+              <span className="text-[8px] font-mono text-slate-400 font-semibold">USDT • Web3</span>
             </div>
 
             {/* Guarantee 3: 18+ Responsible Gaming */}

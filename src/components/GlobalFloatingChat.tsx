@@ -21,30 +21,30 @@ const SENDER_NAMES = [
   "Roni_Vegas", "JackpotBoss", "Spins_King", "Crash_Master", "Hassan_007",
   "Lucky_Bhai", "PlinkoGamer", "Slot_Guru", "Dhaka_Titan", "Sylhet_Star",
   "Casino_Queen", "Vance_Student", "VIP_Roller", "AlphaWinner", "Golden_Chip",
-  "Crypto_Spinner", "HighRoll_BD", "Royal_Streak", "Nagad_King", "bKash_Boss"
+  "Crypto_Spinner", "HighRoll_BD", "Royal_Streak", "USDT_Whale", "Binance_Pro"
 ];
 
 const SIMULATED_MESSAGES = [
   "Wow, Neon Plinko just paid 100x on the green ball! 🔥",
-  " bKash deposit got approved in literally 15 seconds. High speed!",
+  "USDT deposit got approved in literally 15 seconds. High speed!",
   "Who is playing Crash Rocket? Let's cash out together at 5x!",
   "Vance host gave me an emergency loan, I'm back in the game baby! 😎",
   "Just hit 3 cherries on Slots Machine! +$1,500 chips!",
-  "Any bKash agent online right now? Need a fast top-up.",
-  "Yes bro, bKash agent Roni is active and lightning fast.",
-  "The USDT rate at $125 is actually super solid.",
+  "Any Binance Pay agent online right now? Need a fast top-up.",
+  "Yes bro, P2P crypto agent Alpha is active and lightning fast.",
+  "The USDT rate is super solid.",
   "Slots jackpot is sitting at $45,000, who is going to crack it today?",
   "Blackjack dealer got 21 three times in a row, Vance help 😭",
   "Finally a Baccarat win on banker! 👑",
   "Plinko is definitely the most chill game, just watching the balls drop.",
   "Always cash out of Crash before 2x if you want safe profit guys.",
   "Never! Rocket to the moon 🚀 10x minimum!",
-  "Nagad cashout worked instantly, thanks admin team!",
+  "Binance Pay cashout worked instantly, thanks admin team!",
   "I'm at 5 daily missions completed, today's rewards are huge.",
   "Just joined the VIP Club, the Golden Booster chest is totally worth it.",
   "Can someone lend me 200 chips? I lost on Roulette 🔴",
   "Go sign the emergency loan ledger with Vance in your profile page!",
-  "Dhaka Elite agent is highly responsive, highly recommended for P2P."
+  "VIP Crypto agent is highly responsive, highly recommended for P2P."
 ];
 
 export default function GlobalFloatingChat({ currentUser }: { currentUser: any }) {

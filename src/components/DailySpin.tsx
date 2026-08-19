@@ -1,29 +1,53 @@
 import React, { useState, useEffect } from "react";
-import { Gift, RefreshCw, Sparkles, CheckCircle, Flame } from "lucide-react";
+import { Gift, RefreshCw, Sparkles, CheckCircle, Flame, Lock, ArrowRight, Coins } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { casinoAudio } from "../lib/audioService";
+import { hasPlayerCompletedDeposit } from "../lib/depositBonusHelper";
 
 interface DailySpinProps {
   onWin: (amount: number, historyMsg: string) => void;
   onCommentaryRequest: (type: "greet" | "win") => void;
+  onOpenDeposit?: () => void;
+  currentUser?: any;
 }
 
 const SPIN_SECTORS = [
-  { amount: 10, color: "bg-slate-900 border-slate-800 text-slate-300" },
-  { amount: 25, color: "bg-gradient-to-b from-fuchsia-950 to-purple-950 border-fuchsia-800 text-fuchsia-400" },
-  { amount: 50, color: "bg-slate-900 border-slate-800 text-slate-300" },
-  { amount: 100, color: "bg-gradient-to-b from-amber-950 to-amber-900 border-amber-800 text-amber-400 font-extrabold" },
-  { amount: 15, color: "bg-slate-900 border-slate-800 text-slate-300" },
-  { amount: 30, color: "bg-gradient-to-b from-cyan-950 to-teal-950 border-cyan-800 text-cyan-400" },
-  { amount: 20, color: "bg-slate-900 border-slate-800 text-slate-300" },
-  { amount: 75, color: "bg-gradient-to-b from-emerald-950 to-emerald-900 border-emerald-800 text-emerald-400 font-semibold" },
+  { amount: 0.01, label: "$0.01", color: "bg-slate-900 border-slate-800 text-slate-300" },
+  { amount: 0.01, label: "$0.01", color: "bg-gradient-to-b from-fuchsia-950 to-purple-950 border-fuchsia-800 text-fuchsia-400" },
+  { amount: 0.01, label: "$0.01", color: "bg-slate-900 border-slate-800 text-slate-300" },
+  { amount: 0.01, label: "$0.01", color: "bg-gradient-to-b from-amber-950 to-amber-900 border-amber-800 text-amber-400 font-extrabold" },
+  { amount: 0.01, label: "$0.01", color: "bg-slate-900 border-slate-800 text-slate-300" },
+  { amount: 0.01, label: "$0.01", color: "bg-gradient-to-b from-cyan-950 to-teal-950 border-cyan-800 text-cyan-400" },
+  { amount: 0.01, label: "$0.01", color: "bg-slate-900 border-slate-800 text-slate-300" },
+  { amount: 0.01, label: "$0.01", color: "bg-gradient-to-b from-emerald-950 to-emerald-900 border-emerald-800 text-emerald-400 font-semibold" },
 ];
 
-export default function DailySpin({ onWin, onCommentaryRequest }: DailySpinProps) {
+export default function DailySpin({ onWin, onCommentaryRequest, onOpenDeposit, currentUser }: DailySpinProps) {
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [claimableTime, setClaimableTime] = useState<number | null>(null);
   const [resultAmount, setResultAmount] = useState<number | null>(null);
+  const [hasDeposited, setHasDeposited] = useState<boolean>(() => {
+    return hasPlayerCompletedDeposit(currentUser?.email);
+  });
+
+  // Keep deposit status in sync with global events
+  useEffect(() => {
+    const checkDepositStatus = () => {
+      setHasDeposited(hasPlayerCompletedDeposit(currentUser?.email));
+    };
+    checkDepositStatus();
+
+    window.addEventListener("storage", checkDepositStatus);
+    window.addEventListener("balance_updated", checkDepositStatus);
+    window.addEventListener("deposit_approved", checkDepositStatus);
+
+    return () => {
+      window.removeEventListener("storage", checkDepositStatus);
+      window.removeEventListener("balance_updated", checkDepositStatus);
+      window.removeEventListener("deposit_approved", checkDepositStatus);
+    };
+  }, [currentUser]);
 
   useEffect(() => {
     const lastSpin = localStorage.getItem("last_daily_spin");
@@ -35,6 +59,12 @@ export default function DailySpin({ onWin, onCommentaryRequest }: DailySpinProps
   }, []);
 
   const triggerSpin = () => {
+    if (!hasDeposited) {
+      casinoAudio.playClick();
+      if (onOpenDeposit) onOpenDeposit();
+      return;
+    }
+
     if (isSpinning) return;
     if (claimableTime && Date.now() < claimableTime) return;
 
@@ -76,8 +106,8 @@ export default function DailySpin({ onWin, onCommentaryRequest }: DailySpinProps
 
     setTimeout(() => {
       setIsSpinning(false);
-      setResultAmount(reward.amount);
-      onWin(reward.amount, `Claimed Daily Reward of $${reward.amount} USDT`);
+      setResultAmount(0.01);
+      onWin(0.01, `Claimed Daily Reward of $0.01 USDT (0.01¢)`);
       
       const now = Date.now();
       localStorage.setItem("last_daily_spin", String(now));
@@ -104,10 +134,10 @@ export default function DailySpin({ onWin, onCommentaryRequest }: DailySpinProps
     return () => clearInterval(timer);
   }, []);
 
-  const isLocked = claimableTime ? nowTick < claimableTime : false;
+  const isLocked = !hasDeposited || (claimableTime ? nowTick < claimableTime : false);
 
   return (
-    <div id="dailyspin-game-container" className="flex flex-col items-center gap-6 p-4 sm:p-6 rounded-3xl border border-slate-900 bg-slate-950/80 backdrop-blur-xl relative overflow-hidden shadow-2xl glow-amber">
+    <div id="dailyspin-game-container" className="flex flex-col items-center gap-6 p-4 sm:p-6 rounded-3xl border border-slate-900 bg-slate-950/80 backdrop-blur-xl relative overflow-hidden shadow-2xl glow-amber max-w-xl mx-auto w-full">
       
       {/* Neon banner accent */}
       <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-orange-500 shadow-[0_2px_15px_rgba(245,158,11,0.5)]" />
@@ -117,6 +147,11 @@ export default function DailySpin({ onWin, onCommentaryRequest }: DailySpinProps
         <h3 className="font-mono text-xl font-black text-white flex items-center gap-2 justify-center tracking-tight">
           <Gift className="h-5.5 w-5.5 text-amber-400 animate-bounce" /> Vegas Daily Wheel
         </h3>
+        <p className="text-[11px] text-slate-400 font-mono mt-1">
+          {hasDeposited 
+            ? "Spin daily after deposit to claim your guaranteed $0.01 USDT bonus prize!" 
+            : "Complete a verified deposit to unlock your daily spin privilege."}
+        </p>
       </div>
 
       {/* Rotating Wheel of Fortune with gold indicators */}
@@ -143,7 +178,7 @@ export default function DailySpin({ onWin, onCommentaryRequest }: DailySpinProps
                   {/* Custom sector layout */}
                   <div className={`h-28 w-14 rounded-t-xl flex flex-col items-center justify-center text-xs font-mono font-black mt-1 ${sector.color} border-t-2 border-white/[0.05] shadow-lg`}>
                     <Sparkles className="h-3 w-3 mb-1.5 opacity-30" />
-                    <span className="tracking-tight">${sector.amount}</span>
+                    <span className="tracking-tight">{sector.label}</span>
                   </div>
                 </div>
               );
@@ -153,16 +188,22 @@ export default function DailySpin({ onWin, onCommentaryRequest }: DailySpinProps
           {/* Center Golden Core */}
           <button
             onClick={triggerSpin}
-            disabled={isLocked || isSpinning}
+            disabled={isSpinning || (hasDeposited && isLocked)}
             className={`absolute h-18 w-18 rounded-full border-4 border-amber-500 shadow-[0_4px_20px_rgba(245,158,11,0.5)] flex flex-col items-center justify-center font-mono font-black text-slate-950 select-none z-20 cursor-pointer hover:scale-105 active:scale-90 transition-all ${
-              isLocked
+              !hasDeposited
+                ? "bg-gradient-to-b from-amber-400 to-yellow-500 text-slate-950 border-amber-300 animate-pulse"
+                : isLocked
                 ? "bg-gradient-to-b from-slate-800 to-slate-900 text-slate-500 border-slate-700 cursor-not-allowed shadow-none"
                 : isSpinning
                 ? "bg-slate-700 text-amber-500 border-slate-600"
                 : "bg-gradient-to-b from-amber-300 via-yellow-400 to-amber-500"
             }`}
           >
-            {isLocked ? (
+            {!hasDeposited ? (
+              <span className="text-[9px] uppercase font-black tracking-tight leading-none text-center px-1">
+                DEPOSIT<br/>FIRST
+              </span>
+            ) : isLocked ? (
               <span className="text-[9px] uppercase font-bold text-slate-500">LOCKED</span>
             ) : isSpinning ? (
               <RefreshCw className="h-5 w-5 animate-spin text-amber-500" />
@@ -175,7 +216,27 @@ export default function DailySpin({ onWin, onCommentaryRequest }: DailySpinProps
 
       {/* Timing and Status Panel */}
       <div className="flex flex-col items-center gap-3 w-full bg-slate-950/60 p-5 rounded-2xl border border-white/[0.03] text-center shadow-inner">
-        {isLocked ? (
+        {!hasDeposited ? (
+          <div className="space-y-3 w-full flex flex-col items-center">
+            <div className="flex items-center gap-2 text-amber-400 text-xs font-mono font-bold uppercase tracking-wider">
+              <Lock className="h-4 w-4 text-amber-400" /> DEPOSIT REQUIRED TO SPIN
+            </div>
+            <p className="text-[11px] text-slate-400 font-mono max-w-md">
+              Global players unlock 1 free daily spin ($0.01 prize) immediately after making their first deposit ($10 minimum).
+            </p>
+            {onOpenDeposit && (
+              <button
+                onClick={() => {
+                  casinoAudio.playClick();
+                  onOpenDeposit();
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#00FF66] to-emerald-400 hover:from-[#00e65c] hover:to-emerald-500 text-slate-950 font-mono text-xs font-black uppercase tracking-wider transition-all cursor-pointer active:scale-95 shadow-[0_0_15px_rgba(0,255,102,0.4)] flex items-center gap-2"
+              >
+                <Coins className="h-4 w-4" /> MAKE A DEPOSIT TO UNLOCK <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        ) : isLocked ? (
           <div className="space-y-1.5">
             <span className="text-xs font-mono text-slate-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5">
               <Flame className="h-4 w-4 text-amber-500 animate-pulse" /> RE-CHARGE COOLING
@@ -187,7 +248,7 @@ export default function DailySpin({ onWin, onCommentaryRequest }: DailySpinProps
             <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5 justify-center font-bold tracking-wider uppercase">
               <CheckCircle className="h-4 w-4 animate-pulse" /> CYLINDER UNLOCKED!
             </span>
-            <p className="text-[11px] text-slate-500 font-mono">Press the central trigger core to claim your complimentary bundle.</p>
+            <p className="text-[11px] text-slate-500 font-mono">Press the central trigger core to claim your complimentary $0.01 bonus prize.</p>
           </div>
         )}
       </div>
@@ -205,10 +266,10 @@ export default function DailySpin({ onWin, onCommentaryRequest }: DailySpinProps
               <Sparkles className="h-11 w-11 text-amber-400 animate-bounce mb-3" />
               <span className="text-[10px] uppercase font-mono tracking-widest text-slate-500 font-bold">DAILY INCENTIVE BUNDLE</span>
               <div className="mt-2 text-2xl font-mono font-black text-amber-400 tracking-tight drop-shadow-[0_0_10px_rgba(245,158,11,0.35)]">
-                +${resultAmount} Chips Added!
+                +${resultAmount.toFixed(2)} Chips Added!
               </div>
               <p className="text-xs text-slate-500 font-mono mt-3 leading-relaxed">
-                Your free high-roller chip stack has been instantly credited to your VIP purse. Best of luck on the casino floors!
+                Your free $0.01 bonus chip prize has been instantly credited to your purse. Best of luck on the casino floors!
               </p>
 
               <button

@@ -175,9 +175,6 @@ export default function P2PCashierModal({
     "USDT (TRC-20)",
     "USDT (BEP-20)",
     "Binance Pay",
-    "bKash",
-    "Nagad",
-    "Rocket",
     "BTC",
     "ETH",
     "SOL"

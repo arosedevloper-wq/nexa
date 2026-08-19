@@ -64,9 +64,6 @@ const SUPPORTED_GATEWAYS = [
   "USDT (TRC-20)",
   "USDT (BEP-20)",
   "Binance Pay",
-  "bKash",
-  "Nagad",
-  "Rocket",
   "BTC",
   "ETH",
   "SOL"
@@ -465,7 +462,7 @@ export default function AgentControlHub({ currentUser, onAddAuditLog }: AgentCon
       email: newAgentEmail.trim() || `${id}@casino.com`,
       password: newAgentPassword.trim() || "agentpass123",
       balance: floatNum,
-      service: newAgentGateways[0] || "bKash",
+      service: newAgentGateways[0] || "USDT (TRC-20)",
       rating: "5.0 (New)",
       speed: "1-3 mins",
       avatar: "👨‍💼",
@@ -487,9 +484,6 @@ export default function AgentControlHub({ currentUser, onAddAuditLog }: AgentCon
         "USDT (TRC-20)": "T9xMasterCasinoWalletUSDT2026Crypto",
         "USDT (BEP-20)": "0x71C7B5a713A29f27d5320d75a1348123A8429C91",
         "Binance Pay": "284910385",
-        bKash: newAgentPhone.trim() || "01788-990011",
-        Nagad: newAgentPhone.trim() || "01911-223344",
-        Rocket: newAgentPhone.trim() || "01622-334455",
         BTC: "bc1qnexaspincryptocasinohash777BTC",
         ETH: "0x777NexaSpinCryptoCasinoAddress999ETH",
         SOL: "SOL777NexaSpinCryptoCasinoAddressXyZ123SOL"
@@ -1050,7 +1044,7 @@ export default function AgentControlHub({ currentUser, onAddAuditLog }: AgentCon
                       <div className="space-y-1">
                         <div className="text-[9px] uppercase font-bold text-slate-500">Connected Gateways</div>
                         <div className="flex flex-wrap gap-1 max-h-12 overflow-y-auto">
-                          {(agent.supportedMethods || [agent.service || "bKash"]).map((method) => (
+                          {(agent.supportedMethods || [agent.service || "USDT (TRC-20)"]).map((method) => (
                             <span
                               key={method}
                               className="bg-slate-950 text-slate-300 border border-slate-800 text-[9px] px-2 py-0.5 rounded font-bold"

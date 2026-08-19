@@ -461,7 +461,7 @@ export default function AdminPanel({
   const [showAddAgentForm, setShowAddAgentForm] = useState(false);
   const [newP2pName, setNewP2pName] = useState("");
   const [newP2pPhone, setNewP2pPhone] = useState("");
-  const [newP2pService, setNewP2pService] = useState("bKash");
+  const [newP2pService, setNewP2pService] = useState("USDT / Binance Pay");
   const [newP2pRating, setNewP2pRating] = useState("4.9");
   const [newP2pSpeed, setNewP2pSpeed] = useState("1-3 mins");
   const [newP2pAvatar, setNewP2pAvatar] = useState("👨‍💼");
@@ -475,7 +475,7 @@ export default function AdminPanel({
   const [editingP2pId, setEditingP2pId] = useState<string | null>(null);
   const [editP2pName, setEditP2pName] = useState("");
   const [editP2pPhone, setEditP2pPhone] = useState("");
-  const [editP2pService, setEditP2pService] = useState("bKash");
+  const [editP2pService, setEditP2pService] = useState("USDT / Binance Pay");
   const [editP2pRating, setEditP2pRating] = useState("");
   const [editP2pSpeed, setEditP2pSpeed] = useState("");
   const [editP2pAvatar, setEditP2pAvatar] = useState("");
@@ -593,7 +593,7 @@ export default function AdminPanel({
     setEditingP2pId(agent.id);
     setEditP2pName(agent.name || "");
     setEditP2pPhone(agent.phone || agent.phoneNumber || "");
-    setEditP2pService(agent.service || "bKash");
+    setEditP2pService(agent.service || "USDT / Binance Pay");
     setEditP2pRating(agent.rating || "");
     setEditP2pSpeed(agent.speed || "");
     setEditP2pAvatar(agent.avatar || "👨‍💼");
@@ -657,7 +657,7 @@ export default function AdminPanel({
   const [newAgentEmail, setNewAgentEmail] = useState("");
   const [newAgentPhone, setNewAgentPhone] = useState("");
   const [newAgentPassword, setNewAgentPassword] = useState("");
-  const [newAgentService, setNewAgentService] = useState("bKash");
+  const [newAgentService, setNewAgentService] = useState("USDT / Binance Pay");
   const [newAgentFormError, setNewAgentFormError] = useState("");
   const [newAgentFormSuccess, setNewAgentFormSuccess] = useState("");
 
@@ -5206,12 +5206,13 @@ export default function AdminPanel({
                         onChange={(e) => setNewAgentService(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl font-mono text-xs text-emerald-400 focus:outline-none focus:border-emerald-500 transition-all outline-none cursor-pointer"
                       >
-                        <option value="bKash">bKash Merchant</option>
-                        <option value="Nagad">Nagad Merchant</option>
-                        <option value="Rocket">Rocket P2P</option>
-                        <option value="M-Pesa">M-Pesa / Upay</option>
-                        <option value="Crypto">Crypto USDT / Wallet</option>
-                        <option value="All Services">All Routes / Universal</option>
+                        <option value="USDT (TRC-20)">USDT (TRC-20)</option>
+                        <option value="USDT (BEP-20)">USDT (BEP-20)</option>
+                        <option value="Binance Pay">Binance Pay</option>
+                        <option value="BTC">BTC (Bitcoin)</option>
+                        <option value="ETH">ETH (Ethereum)</option>
+                        <option value="SOL">SOL (Solana)</option>
+                        <option value="All Services">All Crypto Routes / Universal</option>
                       </select>
                     </div>
                     <div>
@@ -5336,12 +5337,13 @@ export default function AdminPanel({
                                 onChange={(e) => setEditAgentData({ ...editAgentData, service: e.target.value })}
                                 className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-indigo-300"
                               >
-                                <option value="bKash">bKash Merchant</option>
-                                <option value="Nagad">Nagad Merchant</option>
-                                <option value="Rocket">Rocket P2P</option>
-                                <option value="M-Pesa">M-Pesa / Upay</option>
-                                <option value="Crypto">Crypto USDT / Wallet</option>
-                                <option value="All Services">All Routes / Universal</option>
+                                <option value="USDT (TRC-20)">USDT (TRC-20)</option>
+                                <option value="USDT (BEP-20)">USDT (BEP-20)</option>
+                                <option value="Binance Pay">Binance Pay</option>
+                                <option value="BTC">BTC (Bitcoin)</option>
+                                <option value="ETH">ETH (Ethereum)</option>
+                                <option value="SOL">SOL (Solana)</option>
+                                <option value="All Services">All Crypto Routes / Universal</option>
                               </select>
                             </div>
                           </div>
@@ -5445,7 +5447,7 @@ export default function AdminPanel({
                                     email: agent.email || "",
                                     phone: agent.phoneNumber || agent.phone || "",
                                     password: agent.password || "",
-                                    service: agent.service || "bKash",
+                                    service: agent.service || "USDT (TRC-20)",
                                     showOnDeposit: agent.showOnDeposit ?? true,
                                     showOnWithdrawal: agent.showOnWithdrawal ?? true
                                   });

@@ -169,36 +169,46 @@ export function setP2PGlobalKillSwitch(active: boolean): void {
 // Get and Sync Extended Agents
 export function getExtendedAgents(): ExtendedP2PAgent[] {
   const baseAgents = getMergedP2PAgents() as ExtendedP2PAgent[];
-  return baseAgents.map((a) => ({
-    ...a,
-    shiftStatus: a.shiftStatus || (a.status === "active" ? "online" : a.status === "offline" ? "offline" : "online"),
-    isFrozen: a.isFrozen || a.status === "suspended" || false,
-    subAdminOwner: a.subAdminOwner || "subadmin",
-    supportedMethods: a.supportedMethods || [
+  return baseAgents.map((a) => {
+    // Sanitize any legacy bKash/Nagad/Rocket methods
+    const cleanMethods = (a.supportedMethods || [
       "USDT (TRC-20)",
       "USDT (BEP-20)",
       "Binance Pay",
-      "bKash",
-      "Nagad",
-      "Rocket",
       "BTC",
       "ETH",
       "SOL"
-    ],
-    walletAddresses: a.walletAddresses || {
-      "USDT (TRC-20)": "T9xMasterCasinoWalletUSDT2026Crypto",
-      "USDT (BEP-20)": "0x71C7B5a713A29f27d5320d75a1348123A8429C91",
-      "Binance Pay": "284910385",
-      "bKash": a.phone || "01788-990011",
-      "Nagad": a.phone || "01911-223344",
-      "Rocket": a.phone || "01622-334455",
-      "BTC": "bc1qnexaspincryptocasinohash777BTC",
-      "ETH": "0x777NexaSpinCryptoCasinoAddress999ETH",
-      "SOL": "SOL777NexaSpinCryptoCasinoAddressXyZ123SOL"
-    },
-    minLimit: a.minLimit || 10,
-    maxLimit: a.maxLimit || 100000
-  }));
+    ]).filter((m) => !["bKash", "Nagad", "Rocket"].includes(m));
+
+    const defaultMethods = cleanMethods.length > 0 ? cleanMethods : [
+      "USDT (TRC-20)",
+      "USDT (BEP-20)",
+      "Binance Pay",
+      "BTC",
+      "ETH",
+      "SOL"
+    ];
+
+    const cleanWallets: Record<string, string> = {
+      "USDT (TRC-20)": a.walletAddresses?.["USDT (TRC-20)"] || "T9xMasterCasinoWalletUSDT2026Crypto",
+      "USDT (BEP-20)": a.walletAddresses?.["USDT (BEP-20)"] || "0x71C7B5a713A29f27d5320d75a1348123A8429C91",
+      "Binance Pay": a.walletAddresses?.["Binance Pay"] || "284910385",
+      "BTC": a.walletAddresses?.["BTC"] || "bc1qnexaspincryptocasinohash777BTC",
+      "ETH": a.walletAddresses?.["ETH"] || "0x777NexaSpinCryptoCasinoAddress999ETH",
+      "SOL": a.walletAddresses?.["SOL"] || "SOL777NexaSpinCryptoCasinoAddressXyZ123SOL"
+    };
+
+    return {
+      ...a,
+      shiftStatus: a.shiftStatus || (a.status === "active" ? "online" : a.status === "offline" ? "offline" : "online"),
+      isFrozen: a.isFrozen || a.status === "suspended" || false,
+      subAdminOwner: a.subAdminOwner || "subadmin",
+      supportedMethods: defaultMethods,
+      walletAddresses: cleanWallets,
+      minLimit: a.minLimit || 10,
+      maxLimit: a.maxLimit || 100000
+    };
+  });
 }
 
 export function saveExtendedAgents(agents: ExtendedP2PAgent[]): void {

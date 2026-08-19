@@ -50,7 +50,7 @@ export interface TransactionRecord {
   amount: number;
   fee?: number;
   type: "deposit" | "withdrawal" | "p2p_transfer" | "p2p_receive" | "bonus" | "cashback" | "agent_float";
-  method: "bKash" | "Nagad" | "Rocket" | "Upay" | "Crypto" | "USDT" | "BTC" | "ETH" | "Bank" | "P2P_Agent" | "Admin_Grant";
+  method: "Crypto" | "USDT" | "USDT (TRC-20)" | "USDT (BEP-20)" | "Binance Pay" | "BTC" | "ETH" | "SOL" | "P2P_Agent" | "Admin_Grant";
   trx_id?: string;
   account_number?: string;
   agent_id?: string;
@@ -343,7 +343,7 @@ export async function resolveBetViaEdgeFunction(payload: {
 export async function createDepositTransaction(
   userId: string,
   amount: number,
-  method: "bKash" | "Nagad" | "Rocket" | "Upay" | "Crypto",
+  method: "Crypto" | "USDT" | "USDT (TRC-20)" | "USDT (BEP-20)" | "Binance Pay" | "BTC" | "ETH" | "SOL",
   trxId: string,
   accountNumber?: string
 ): Promise<{ success: boolean; txId?: string; error?: string }> {
@@ -376,7 +376,7 @@ export async function createDepositTransaction(
 export async function createWithdrawTransaction(
   userId: string,
   amount: number,
-  method: "bKash" | "Nagad" | "Rocket" | "Crypto" | "Bank",
+  method: "Crypto" | "USDT" | "USDT (TRC-20)" | "USDT (BEP-20)" | "Binance Pay" | "BTC" | "ETH" | "SOL",
   accountNumber: string
 ): Promise<{ success: boolean; txId?: string; error?: string }> {
   if (isSupabaseConfigured) {

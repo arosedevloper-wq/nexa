@@ -863,7 +863,7 @@ export default function PlayerProfile({
       return;
     }
 
-    const selectedAgentObj = p2pAgents.find(a => a.id === selectedAgentId) || p2pAgents[0] || { id: "agent-1", name: "Roni Vegas (bKash VIP Agent)", phone: "01788-990011" };
+    const selectedAgentObj = p2pAgents.find(a => a.id === selectedAgentId) || p2pAgents[0] || { id: "agent-1", name: "Alpha VIP Crypto Agent", phone: "T9xMasterCasinoWalletUSDT2026Crypto" };
 
     // Calculate 10% Crypto Deposit Bonus if depositing via crypto
     const isCryptoDeposit = paymentMethod === "crypto" && bankingType === "deposit";
@@ -1526,7 +1526,7 @@ export default function PlayerProfile({
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase block font-bold">Primary Settlement Number</span>
                       <strong className="text-sm text-white">{activePlayer?.phoneNumber || "01700-000000"}</strong>
-                      <span className="text-[9px] text-emerald-400 block">bKash • Nagad • Rocket Verified</span>
+                      <span className="text-[9px] text-emerald-400 block">USDT • Binance Pay • Web3 Verified</span>
                     </div>
                     <button
                       onClick={() => { casinoAudio.playClick(); setActiveTab("banking"); }}

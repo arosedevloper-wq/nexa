@@ -2774,7 +2774,13 @@ export default function App() {
                   transition={{ duration: 0.2 }}
                 >
                   <DailySpin
-                    onWin={(amt, msg) => awardBonusFunds(amt, msg || "Daily Wheel Spin")}
+                    currentUser={currentUser}
+                    onOpenDeposit={() => changeTab("stats")}
+                    onWin={(amt, msg) => {
+                      const finalAmt = 0.01;
+                      handleAwardChips(finalAmt, msg || `Claimed Daily Reward of $${finalAmt.toFixed(2)} USDT`);
+                      addAuditLog(`DAILY WHEEL: Global Player claimed $${finalAmt.toFixed(2)} USDT Daily Spin reward.`, "success");
+                    }}
                     onCommentaryRequest={triggerVanceCommentary}
                   />
                 </motion.div>

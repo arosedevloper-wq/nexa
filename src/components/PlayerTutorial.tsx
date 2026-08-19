@@ -628,7 +628,7 @@ export default function PlayerTutorial({
                     </div>
                     <h4 className="text-sm font-black text-white">Select Method & Agent</h4>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Click <strong>Deposit / Cashier</strong>. Choose your preferred local gateway (bKash, Nagad, Rocket, Binance Pay, USDT TRC-20, BTC, ETH). Pick any verified online Agent from the live network.
+                      Click <strong>Deposit / Cashier</strong>. Choose your preferred crypto or Web3 gateway (Binance Pay, USDT TRC-20, USDT BEP-20, BTC, ETH, SOL). Pick any verified online Agent from the live network.
                     </p>
                     <div className="text-[10px] text-emerald-400 font-bold bg-emerald-950/40 p-2 rounded-lg border border-emerald-800/40">
                       ✓ Instant routing to highest-rated online agent
@@ -742,7 +742,7 @@ export default function PlayerTutorial({
                     </div>
                     <h4 className="text-sm font-black text-white">Enter Amount & Account</h4>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Input your desired withdrawal amount. Provide your personal receiving mobile number (bKash/Nagad) or crypto wallet address (USDT TRC-20/BTC).
+                      Input your desired withdrawal amount. Provide your personal receiving Binance Pay ID or crypto wallet address (USDT TRC-20/BTC/ETH/SOL).
                     </p>
                     <div className="text-[10px] text-cyan-400 font-bold bg-cyan-950/40 p-2 rounded-lg border border-cyan-800/40">
                       ✓ Zero platform cashout deduction fees
@@ -1061,7 +1061,7 @@ export default function PlayerTutorial({
               </button>
               {openFaqIndex === 3 && (
                 <div className="px-5 pb-5 pt-1 text-xs text-slate-300 leading-relaxed border-t border-slate-900 bg-slate-900/30">
-                  <strong>Zero (0%) Platform Fees.</strong> NexaSpin does not charge any deposit or cashout processing fees on local mobile wallets (bKash, Nagad, Rocket) or crypto rails. Standard blockchain gas fees may apply depending on network congestion for BTC/ETH transfers.
+                  <strong>Zero (0%) Platform Fees.</strong> NexaSpin does not charge any deposit or cashout processing fees on crypto rails (USDT, Binance Pay, BTC, ETH, SOL). Standard blockchain gas fees may apply depending on network congestion for BTC/ETH transfers.
                 </div>
               )}
             </div>

@@ -105,15 +105,12 @@ export default function SubAdminDashboard({
   const [deployMaxLimit, setDeployMaxLimit] = useState("10000");
   const [deployInitialFloat, setDeployInitialFloat] = useState("1000");
   const [deploySelectedGateways, setDeploySelectedGateways] = useState<string[]>([
-    "USDT (TRC-20)", "USDT (BEP-20)", "Binance Pay", "bKash", "Nagad", "Rocket", "BTC", "ETH", "SOL"
+    "USDT (TRC-20)", "USDT (BEP-20)", "Binance Pay", "BTC", "ETH", "SOL"
   ]);
   const [deployGatewayDetails, setDeployGatewayDetails] = useState<Record<string, string>>({
     "USDT (TRC-20)": "T9xMasterCasinoWalletUSDT2026Crypto",
     "USDT (BEP-20)": "0x71C7B5a713A29f27d5320d75a1348123A8429C91",
     "Binance Pay": "284910385",
-    "bKash": "01788-990011",
-    "Nagad": "01911-223344",
-    "Rocket": "01622-334455",
     "BTC": "bc1qnexaspincryptocasinohash777BTC",
     "ETH": "0x777NexaSpinCryptoCasinoAddress999ETH",
     "SOL": "SOL777NexaSpinCryptoCasinoAddressXyZ123SOL"
@@ -528,7 +525,7 @@ export default function SubAdminDashboard({
       shiftStatus: "online",
       isFrozen: false,
       subAdminOwner: currentUser.name,
-      supportedMethods: deploySelectedGateways.length > 0 ? deploySelectedGateways : ["USDT (TRC-20)", "bKash", "Binance Pay"],
+      supportedMethods: deploySelectedGateways.length > 0 ? deploySelectedGateways : ["USDT (TRC-20)", "Binance Pay"],
       walletAddresses: deployGatewayDetails,
       minLimit: parseFloat(deployMinLimit) || 10,
       maxLimit: parseFloat(deployMaxLimit) || 10000
@@ -1287,7 +1284,7 @@ export default function SubAdminDashboard({
 
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1 max-w-xs">
-                            {(ag.supportedMethods || ["USDT (TRC-20)", "bKash"]).slice(0, 4).map((m) => (
+                            {(ag.supportedMethods || ["USDT (TRC-20)", "Binance Pay"]).slice(0, 4).map((m) => (
                               <span key={m} className="px-1.5 py-0.5 rounded bg-slate-800 text-[9.5px] text-slate-300 border border-slate-700">
                                 {m}
                               </span>
@@ -1707,7 +1704,7 @@ export default function SubAdminDashboard({
               <div className="pt-2">
                 <label className="text-slate-400 uppercase font-bold text-[10px] block mb-1">Supported Payment Gateways</label>
                 <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
-                  {["USDT (TRC-20)", "USDT (BEP-20)", "Binance Pay", "bKash", "Nagad", "Rocket", "BTC", "ETH", "SOL"].map((gw) => (
+                  {["USDT (TRC-20)", "USDT (BEP-20)", "Binance Pay", "BTC", "ETH", "SOL"].map((gw) => (
                     <label key={gw} className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
                       <input
                         type="checkbox"
