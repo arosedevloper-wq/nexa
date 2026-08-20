@@ -126,6 +126,34 @@ export default function AgentDashboard({
     }) || null;
   }, [agents, currentUser]);
 
+  // Helper to check if a request belongs specifically to the active logged-in agent
+  const isAgentMatch = (r: BankingRequest) => {
+    if (!activeAgent) return true;
+    
+    // Global Universal hub agent or Admin can view all requests
+    if (
+      activeAgent.id === "p2p-agent-global" || 
+      activeAgent.id === "agent-global-universal" ||
+      (activeAgent as any).role === "admin"
+    ) {
+      return true;
+    }
+
+    const reqAgentId = (r.agentId || "").toLowerCase().trim();
+    const reqAgentName = (r.agentName || "").toLowerCase().trim();
+    const myAgentId = (activeAgent.id || "").toLowerCase().trim();
+    const myAgentName = (activeAgent.name || "").toLowerCase().trim();
+
+    // If request has no specific agent assigned (legacy/crypto/fallback), match by default
+    if (!reqAgentId && !reqAgentName) return true;
+
+    // Check exact match or partial match by agent ID or agent Name
+    const idMatch = Boolean(reqAgentId && myAgentId && (reqAgentId === myAgentId || reqAgentId.includes(myAgentId) || myAgentId.includes(reqAgentId)));
+    const nameMatch = Boolean(reqAgentName && myAgentName && (reqAgentName.includes(myAgentName) || myAgentName.includes(reqAgentName)));
+
+    return idMatch || nameMatch;
+  };
+
   // Load and sync players (to apply balance changes)
   const [players, setPlayers] = useState<RegisteredPlayer[]>(() => {
     return getRegisteredPlayers() as any;
@@ -733,34 +761,6 @@ export default function AgentDashboard({
 
     // Dispatch global storage event so App.tsx and player interfaces update
     broadcastFinancialStateUpdates();
-  };
-
-  // Helper to check if a request belongs specifically to the active logged-in agent
-  const isAgentMatch = (r: BankingRequest) => {
-    if (!activeAgent) return true;
-    
-    // Global Universal hub agent or Admin can view all requests
-    if (
-      activeAgent.id === "p2p-agent-global" || 
-      activeAgent.id === "agent-global-universal" ||
-      (activeAgent as any).role === "admin"
-    ) {
-      return true;
-    }
-
-    const reqAgentId = (r.agentId || "").toLowerCase().trim();
-    const reqAgentName = (r.agentName || "").toLowerCase().trim();
-    const myAgentId = (activeAgent.id || "").toLowerCase().trim();
-    const myAgentName = (activeAgent.name || "").toLowerCase().trim();
-
-    // If request has no specific agent assigned (legacy/crypto/fallback), match by default
-    if (!reqAgentId && !reqAgentName) return true;
-
-    // Check exact match or partial match by agent ID or agent Name
-    const idMatch = Boolean(reqAgentId && myAgentId && (reqAgentId === myAgentId || reqAgentId.includes(myAgentId) || myAgentId.includes(reqAgentId)));
-    const nameMatch = Boolean(reqAgentName && myAgentName && (reqAgentName.includes(myAgentName) || myAgentName.includes(reqAgentName)));
-
-    return idMatch || nameMatch;
   };
 
   // Summary Metrics filtered specifically for active agent

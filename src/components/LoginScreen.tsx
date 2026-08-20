@@ -674,6 +674,7 @@ export default function LoginScreen({ onLoginSuccess, onAddAuditLog }: LoginScre
         onLoginSuccess({
           role: "agent",
           name: agentMatch.name,
+          email: agentMatch.email,
           phoneNumber: agentMatch.phoneNumber || agentMatch.phone,
           loggedInVia: "email_password",
           agentId: agentMatch.id
