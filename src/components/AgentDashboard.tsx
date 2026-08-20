@@ -105,8 +105,25 @@ export default function AgentDashboard({
 
   // Identify active agent
   const activeAgent = useMemo(() => {
-    if (!currentUser || !currentUser.agentId) return null;
-    return agents.find(a => a.id === currentUser.agentId) || null;
+    if (!currentUser) return null;
+    const targetId = (currentUser.agentId || "").toLowerCase().trim();
+    const targetName = (currentUser.name || "").toLowerCase().trim();
+    const targetEmail = (currentUser.email || "").toLowerCase().trim();
+
+    return agents.find(a => {
+      const aId = (a.id || "").toLowerCase().trim();
+      const aName = (a.name || "").toLowerCase().trim();
+      const aEmail = (a.email || "").toLowerCase().trim();
+      const aPhone = (a.phone || a.phoneNumber || "").replace(/\D/g, "");
+      const cPhone = ((currentUser as any).phoneNumber || "").replace(/\D/g, "");
+
+      return (
+        (targetId && aId === targetId) ||
+        (targetEmail && aEmail === targetEmail) ||
+        (targetName && aName === targetName) ||
+        (cPhone && cPhone.length >= 6 && (aPhone === cPhone || aPhone.endsWith(cPhone) || cPhone.endsWith(aPhone)))
+      );
+    }) || null;
   }, [agents, currentUser]);
 
   // Load and sync players (to apply balance changes)

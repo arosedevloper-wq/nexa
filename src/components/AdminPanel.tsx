@@ -437,16 +437,18 @@ export default function AdminPanel({
   });
 
   const saveAgentsUnified = (newList: any[]) => {
-    // Force lowercase/uppercase consistency or field duplicates
+    // Force lowercase/uppercase consistency, preserving custom passwords, emails, phones, and IDs
     const normalizedList = newList.map((a, i) => {
       const num = i + 1;
       const padNum = String(num).padStart(2, "0");
       return {
         ...a,
+        id: a.id || `agent-${num}`,
+        name: a.name || `Agent ${num}`,
         phone: a.phone || a.phoneNumber || `017100000${padNum}`,
         phoneNumber: a.phoneNumber || a.phone || `017100000${padNum}`,
         email: a.email || `agent${num}@casino.com`,
-        password: a.password || `agent${num}pwd`,
+        password: a.password || "Agent123!",
         balance: typeof a.balance === "number" ? a.balance : 250000,
         status: a.status || "active",
       };
@@ -455,6 +457,7 @@ export default function AdminPanel({
     setP2pAgents(normalizedList);
     localStorage.setItem("casino_agents_v1", JSON.stringify(normalizedList));
     localStorage.setItem("casino_p2p_agents_v1", JSON.stringify(normalizedList));
+    localStorage.setItem("p2p_agents", JSON.stringify(normalizedList));
     saveAllP2PAgentsToDatabase(normalizedList as any);
   };
 
