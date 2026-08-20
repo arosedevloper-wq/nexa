@@ -135,6 +135,24 @@ export const ChickenDashGame: React.FC<ChickenDashGameProps> = ({
     if (onCommentaryRequest) onCommentaryRequest("win");
   };
 
+  // Passive touch event listener on canvas for zero-delay mobile hopping
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleTouchStart = () => {
+      if (gameState === "playing") {
+        handleStepForward();
+      }
+    };
+
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: true });
+
+    return () => {
+      canvas.removeEventListener("touchstart", handleTouchStart);
+    };
+  }, [gameState, currentStep, trapStep, betAmount]);
+
   return (
     <div className="w-full bg-slate-950 rounded-2xl border border-emerald-500/30 p-5 shadow-2xl font-sans text-slate-100 flex flex-col gap-4">
       {/* Header */}
@@ -159,7 +177,11 @@ export const ChickenDashGame: React.FC<ChickenDashGameProps> = ({
 
       {/* Canvas Arena */}
       <div className="relative w-full bg-slate-900/90 rounded-2xl border border-slate-800 overflow-hidden min-h-[280px] flex items-center justify-center">
-        <canvas ref={canvasRef} className="w-full h-[280px] block" />
+        <canvas
+          ref={canvasRef}
+          onClick={() => { if (gameState === "playing") handleStepForward(); }}
+          className="w-full h-[280px] block touch-none select-none cursor-pointer"
+        />
       </div>
 
       {/* Controls */}

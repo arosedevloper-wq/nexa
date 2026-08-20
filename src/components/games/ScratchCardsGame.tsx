@@ -25,7 +25,7 @@ export const ScratchCardsGame: React.FC<ScratchCardsGameProps> = ({
   const [isBought, setIsBought] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("Buy a Scratch Card ($100) and scrub tiles or click AUTO-SCRATCH!");
 
-  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+  const gridRef = useRef<HTMLDivElement | null>(null);
 
   const handleBuyCard = () => {
     if (chips < betAmount) {
@@ -96,6 +96,35 @@ export const ScratchCardsGame: React.FC<ScratchCardsGameProps> = ({
     setIsBought(false);
   };
 
+  // Passive touch event listeners for fluid physical foil scrubbing on mobile
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    const handleTouchScrub = (e: TouchEvent) => {
+      if (!isBought || e.touches.length === 0) return;
+      const touch = e.touches[0];
+      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (target) {
+        const tileIndexStr = target.getAttribute("data-tile-index");
+        if (tileIndexStr !== null) {
+          const tileIndex = parseInt(tileIndexStr, 10);
+          if (!isNaN(tileIndex) && !revealed[tileIndex]) {
+            handleScratchTile(tileIndex);
+          }
+        }
+      }
+    };
+
+    grid.addEventListener("touchstart", handleTouchScrub, { passive: true });
+    grid.addEventListener("touchmove", handleTouchScrub, { passive: true });
+
+    return () => {
+      grid.removeEventListener("touchstart", handleTouchScrub);
+      grid.removeEventListener("touchmove", handleTouchScrub);
+    };
+  }, [isBought, revealed, gridSymbols, betAmount]);
+
   return (
     <div className="w-full bg-slate-950 rounded-2xl border border-pink-500/30 p-5 shadow-2xl font-sans text-slate-100 flex flex-col gap-4">
       {/* Header */}
@@ -119,12 +148,13 @@ export const ScratchCardsGame: React.FC<ScratchCardsGameProps> = ({
       </div>
 
       {/* 3x3 Scratch Foil Grid */}
-      <div className="grid grid-cols-3 gap-3 bg-slate-900/80 p-5 rounded-2xl border border-slate-800">
+      <div ref={gridRef} className="grid grid-cols-3 gap-3 bg-slate-900/80 p-5 rounded-2xl border border-slate-800 touch-none select-none">
         {gridSymbols.map((sym, idx) => (
           <div
             key={idx}
+            data-tile-index={idx}
             onClick={() => handleScratchTile(idx)}
-            className={`h-24 sm:h-28 rounded-xl border flex items-center justify-center text-4xl sm:text-5xl cursor-pointer transition shadow-lg ${
+            className={`h-24 sm:h-28 rounded-xl border flex items-center justify-center text-4xl sm:text-5xl cursor-pointer transition shadow-lg touch-none select-none ${
               revealed[idx]
                 ? "bg-slate-950 border-pink-500/40 text-white"
                 : "bg-gradient-to-tr from-slate-800 to-slate-700 border-slate-600 text-slate-400 hover:border-pink-400"

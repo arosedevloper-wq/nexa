@@ -382,7 +382,7 @@ export const VegasPlinkoGame: React.FC<VegasPlinkoGameProps> = ({
   }, [risk, onWin]);
 
   // Drop Ball Action
-  const dropBall = () => {
+  const dropBall = (customX?: number) => {
     if (chips < bet) {
       casinoAudio.playLose();
       setAutoDrop(false);
@@ -392,10 +392,10 @@ export const VegasPlinkoGame: React.FC<VegasPlinkoGameProps> = ({
     casinoAudio.playChipClink();
     onLose(bet, `Plinko Ball Drop ($${bet})`);
 
-    const jitter = (Math.random() - 0.5) * 12;
+    const spawnX = customX !== undefined ? Math.max(width * 0.15, Math.min(width * 0.85, customX)) : (width / 2 + (Math.random() - 0.5) * 12);
     ballsRef.current.push({
       id: Math.random().toString(),
-      x: width / 2 + jitter,
+      x: spawnX,
       y: 25,
       vx: (Math.random() - 0.5) * 15,
       vy: 10,
@@ -409,6 +409,27 @@ export const VegasPlinkoGame: React.FC<VegasPlinkoGameProps> = ({
       onCommentaryRequest("greet");
     }
   };
+
+  // Passive touch event listener on canvas for zero-delay mobile drops
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const relativeX = ((touch.clientX - rect.left) / rect.width) * width;
+        dropBall(relativeX);
+      }
+    };
+
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: true });
+
+    return () => {
+      canvas.removeEventListener("touchstart", handleTouchStart);
+    };
+  }, [chips, bet, risk, width]);
 
   // Auto Drop Interval
   useEffect(() => {
@@ -542,7 +563,7 @@ export const VegasPlinkoGame: React.FC<VegasPlinkoGameProps> = ({
           {/* Controls: Drop Single / Auto Drop */}
           <div className="flex flex-col gap-2.5 mt-2">
             <button
-              onClick={dropBall}
+              onClick={() => dropBall()}
               className="w-full py-3.5 rounded-xl font-black text-slate-950 bg-gradient-to-r from-cyan-400 via-blue-300 to-indigo-400 hover:from-cyan-300 hover:to-blue-400 transition-all shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2 text-base tracking-wide cursor-pointer"
             >
               <ArrowDown className="w-5 h-5 stroke-[3]" /> DROP BALL (${bet})
@@ -580,7 +601,12 @@ export const VegasPlinkoGame: React.FC<VegasPlinkoGameProps> = ({
             ref={canvasRef}
             width={width}
             height={height}
-            className="w-full max-w-[500px] h-auto aspect-[520/560] rounded-2xl border border-slate-800 shadow-2xl bg-slate-950"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const relativeX = ((e.clientX - rect.left) / rect.width) * width;
+              dropBall(relativeX);
+            }}
+            className="w-full max-w-[500px] h-auto aspect-[520/560] rounded-2xl border border-slate-800 shadow-2xl bg-slate-950 touch-none select-none cursor-pointer"
           />
         </div>
       </div>

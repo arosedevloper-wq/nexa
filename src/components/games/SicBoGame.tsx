@@ -111,6 +111,24 @@ export const SicBoGame: React.FC<SicBoGameProps> = ({
     }, 1200);
   };
 
+  // Passive touch event listener on glass dome canvas for responsive mobile tap shaking
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleTouchStart = () => {
+      if (!isShaking) {
+        handleRollDome();
+      }
+    };
+
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: true });
+
+    return () => {
+      canvas.removeEventListener("touchstart", handleTouchStart);
+    };
+  }, [isShaking, chips, betAmount, selectedBet]);
+
   return (
     <div className="w-full bg-slate-950 rounded-2xl border border-cyan-500/30 p-5 shadow-2xl font-sans text-slate-100 flex flex-col gap-4">
       {/* Header */}
@@ -135,7 +153,11 @@ export const SicBoGame: React.FC<SicBoGameProps> = ({
 
       {/* Glass Dome Canvas */}
       <div className="flex justify-center bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
-        <canvas ref={canvasRef} className="w-[300px] h-[200px] block" />
+        <canvas
+          ref={canvasRef}
+          onClick={handleRollDome}
+          className="w-[300px] h-[200px] block touch-none select-none cursor-pointer"
+        />
       </div>
 
       {/* Bet Type Selection */}

@@ -338,7 +338,7 @@ export function deleteP2PAgent(agentId: string): P2PAgent[] {
 
 export function getMergedP2PAgents(): P2PAgent[] {
   const deletedIds = new Set(getDeletedP2PAgentIds().map(id => id.toLowerCase()));
-  let storedList: P2PAgent[] = [];
+  let storedList: any[] = [];
   let hasStored = false;
 
   try {
@@ -348,10 +348,10 @@ export function getMergedP2PAgents(): P2PAgent[] {
       localStorage.getItem("casino_agents_v1");
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         hasStored = true;
         storedList = parsed.filter(
-          (a) => a && a.name && !a.name.includes("Lounge Agent") && !a.id.startsWith("AGENT-") && !deletedIds.has(a.id.toLowerCase())
+          (a) => a && a.id && a.name && !deletedIds.has(String(a.id).toLowerCase())
         );
       }
     }
@@ -360,13 +360,18 @@ export function getMergedP2PAgents(): P2PAgent[] {
   }
 
   // If we already have a valid stored list in localStorage, use it directly (respecting additions and deletions)
-  if (hasStored) {
+  if (hasStored && storedList.length > 0) {
     return storedList.map((a, i) => {
       const num = i + 1;
       const padNum = String(num).padStart(2, "0");
+      const cleanMethods = Array.isArray(a.supportedMethods) && a.supportedMethods.length > 0
+        ? a.supportedMethods.filter((m: string) => !["bKash", "Nagad", "Rocket"].includes(m))
+        : ["USDT (TRC-20)", "USDT (BEP-20)", "Binance Pay", "BTC", "ETH", "SOL"];
+
       return {
+        ...a,
         id: a.id || `agent-${num}`,
-        name: a.name,
+        name: a.name || `Agent ${num}`,
         phone: a.phone || a.phoneNumber || `017100000${padNum}`,
         phoneNumber: a.phoneNumber || a.phone || `017100000${padNum}`,
         service: a.service && !["bKash", "Nagad", "Rocket"].includes(a.service) ? a.service : "USDT / Binance Pay",
@@ -383,7 +388,21 @@ export function getMergedP2PAgents(): P2PAgent[] {
         status: a.status || "active",
         depositRequestsProcessed: a.depositRequestsProcessed || 0,
         withdrawRequestsProcessed: a.withdrawRequestsProcessed || 0,
-        totalVolumeApproved: a.totalVolumeApproved || 0
+        totalVolumeApproved: a.totalVolumeApproved || 0,
+        shiftStatus: a.shiftStatus || "online",
+        isFrozen: a.isFrozen || false,
+        subAdminOwner: a.subAdminOwner || "subadmin",
+        supportedMethods: cleanMethods.length > 0 ? cleanMethods : ["USDT (TRC-20)", "Binance Pay"],
+        walletAddresses: a.walletAddresses || {
+          "USDT (TRC-20)": "T9xMasterCasinoWalletUSDT2026Crypto",
+          "USDT (BEP-20)": "0x71C7B5a713A29f27d5320d75a1348123A8429C91",
+          "Binance Pay": "284910385",
+          "BTC": "bc1qnexaspincryptocasinohash777BTC",
+          "ETH": "0x777NexaSpinCryptoCasinoAddress999ETH",
+          "SOL": "SOL777NexaSpinCryptoCasinoAddressXyZ123SOL"
+        },
+        minLimit: typeof a.minLimit === "number" ? a.minLimit : 10,
+        maxLimit: typeof a.maxLimit === "number" ? a.maxLimit : 10000
       };
     });
   }
@@ -393,6 +412,7 @@ export function getMergedP2PAgents(): P2PAgent[] {
     const num = i + 1;
     const padNum = String(num).padStart(2, "0");
     return {
+      ...a,
       id: a.id || `agent-${num}`,
       name: a.name,
       phone: a.phone || a.phoneNumber || `017100000${padNum}`,
@@ -411,7 +431,21 @@ export function getMergedP2PAgents(): P2PAgent[] {
       status: a.status || "active",
       depositRequestsProcessed: a.depositRequestsProcessed || 0,
       withdrawRequestsProcessed: a.withdrawRequestsProcessed || 0,
-      totalVolumeApproved: a.totalVolumeApproved || 0
+      totalVolumeApproved: a.totalVolumeApproved || 0,
+      shiftStatus: "online",
+      isFrozen: false,
+      subAdminOwner: "subadmin",
+      supportedMethods: ["USDT (TRC-20)", "USDT (BEP-20)", "Binance Pay", "BTC", "ETH", "SOL"],
+      walletAddresses: {
+        "USDT (TRC-20)": "T9xMasterCasinoWalletUSDT2026Crypto",
+        "USDT (BEP-20)": "0x71C7B5a713A29f27d5320d75a1348123A8429C91",
+        "Binance Pay": "284910385",
+        "BTC": "bc1qnexaspincryptocasinohash777BTC",
+        "ETH": "0x777NexaSpinCryptoCasinoAddress999ETH",
+        "SOL": "SOL777NexaSpinCryptoCasinoAddressXyZ123SOL"
+      },
+      minLimit: 10,
+      maxLimit: 10000
     };
   });
 

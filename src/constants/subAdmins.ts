@@ -7,6 +7,8 @@ export interface SubAdmin {
   securityKey: string;
   status: "active" | "suspended" | "blocked";
   created_at: string;
+  floatBalance?: number;
+  allocatedFloat?: number;
   actionsAllowed: {
     manageAgents: boolean;
     approveCrypto: boolean;
@@ -23,6 +25,8 @@ export const DEFAULT_SUB_ADMINS: SubAdmin[] = [
     securityKey: "subadminpwd",
     status: "active",
     created_at: "2026-01-01",
+    floatBalance: 500000,
+    allocatedFloat: 1000000,
     actionsAllowed: {
       manageAgents: true,
       approveCrypto: true,
@@ -37,6 +41,8 @@ export const DEFAULT_SUB_ADMINS: SubAdmin[] = [
     securityKey: "subadmin123",
     status: "active",
     created_at: "2026-02-15",
+    floatBalance: 250000,
+    allocatedFloat: 500000,
     actionsAllowed: {
       manageAgents: true,
       approveCrypto: true,

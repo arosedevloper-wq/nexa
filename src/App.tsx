@@ -1456,8 +1456,9 @@ export default function App() {
   };
 
   const handleClaimMegaWin = (amount: number, isWin: boolean = true) => {
-    // Deduct entry fee ($100)
-    setChips((prev) => Math.max(0, prev - 100));
+    // Deduct entry fee ($100) from player balance
+    const nextChips = Math.max(0, chips - 100);
+    setChips(nextChips);
 
     // Register user to playedPlayers list
     const playerEmail = currentUser?.email?.toLowerCase() || "anonymous";
@@ -1480,7 +1481,8 @@ export default function App() {
 
     if (isWin) {
       casinoAudio.playWin();
-      setChips((prev) => prev + amount);
+      const finalWinChips = nextChips + amount;
+      setChips(finalWinChips);
       setTotalWonSession((prev) => prev + amount);
       setLossesStreak(0);
 
@@ -1498,7 +1500,15 @@ export default function App() {
         description: `Claimed $${amount.toLocaleString()} VIP Mega Win`,
         type: "win",
       };
-      setTransactions((prev) => [newTx, ...prev].slice(0, 50));
+      const updatedTxs = [newTx, ...transactions].slice(0, 50);
+      setTransactions(updatedTxs);
+
+      persistPlayerState({
+        chips: finalWinChips,
+        peakChips: Math.max(peakChips, finalWinChips),
+        transactions: updatedTxs
+      });
+
       triggerVanceCommentary("win");
     } else {
       // Loss: Forfeit the 100 USDT and add to house pool
@@ -1509,10 +1519,17 @@ export default function App() {
         id: Math.random().toString(36).substring(2, 9),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         amount: 100,
-        description: `Decryption Fee Forfeited ($100)`,
+        description: `VIP Vault Decryption Attempt ($100)`,
         type: "lose",
       };
-      setTransactions((prev) => [newTx, ...prev].slice(0, 50));
+      const updatedTxs = [newTx, ...transactions].slice(0, 50);
+      setTransactions(updatedTxs);
+
+      persistPlayerState({
+        chips: nextChips,
+        transactions: updatedTxs
+      });
+
       triggerVanceCommentary("lose");
     }
   };

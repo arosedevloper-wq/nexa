@@ -4,7 +4,7 @@ import {
   ArrowUpRight, ArrowDownLeft, AlertTriangle, MessageSquare, LogOut, 
   Sparkles, Shield, Eye, Filter, CheckCircle2, XCircle, FileText, Download,
   ExternalLink, Copy, Edit2, Plus, Minus, Lock, Unlock, Image as ImageIcon,
-  Scale, Zap, UserPlus, Settings, Activity, DollarSign
+  Scale, Zap, UserPlus, Settings, Activity, DollarSign, Trash2, ArrowRight
 } from "lucide-react";
 import { casinoAudio } from "../lib/audioService";
 import { BankingRequest } from "../types";
@@ -21,6 +21,11 @@ import {
   saveExtendedSubAdmins, 
   injectFloatFromSubAdminToAgent, 
   recallFloatFromAgentToSubAdmin,
+  adjustAgentBalanceFromSubAdmin,
+  setAgentExactBalanceFromSubAdmin,
+  deleteAgentWithFloatRecall,
+  adjustSubAdminWalletBalance,
+  getHouseVaultReserves,
   resolveP2PDispute,
   addP2PAuditLog,
   ExtendedP2PAgent,
@@ -116,10 +121,14 @@ export default function SubAdminDashboard({
     "SOL": "SOL777NexaSpinCryptoCasinoAddressXyZ123SOL"
   });
 
-  // Modal State: Top Up / Recall Float
+  // Modal State: Top Up / Recall / Set Exact Float
   const [selectedAgentForFloatModal, setSelectedAgentForFloatModal] = useState<ExtendedP2PAgent | null>(null);
-  const [floatActionType, setFloatActionType] = useState<"topup" | "recall">("topup");
+  const [floatActionType, setFloatActionType] = useState<"topup" | "recall" | "exact">("topup");
   const [floatAmountInput, setFloatAmountInput] = useState("1000");
+  const [floatReasonInput, setFloatReasonInput] = useState("Sub-Admin Float Adjustment");
+
+  // Modal State: Delete Agent Confirmation
+  const [deletingAgent, setDeletingAgent] = useState<ExtendedP2PAgent | null>(null);
 
   // Modal State: Edit Agent Config
   const [editingAgent, setEditingAgent] = useState<ExtendedP2PAgent | null>(null);
@@ -498,18 +507,24 @@ export default function SubAdminDashboard({
     const initFloatAmt = parseFloat(deployInitialFloat) || 0;
     const subFloat = currentSubAdmin.floatBalance || 0;
     if (initFloatAmt > subFloat) {
-      alert(`Insufficient Sub-Admin Float ($${subFloat.toLocaleString()}) for initial float allocation of $${initFloatAmt.toLocaleString()}.`);
+      alert(`⚠️ Insufficient Sub-Admin Vault Float ($${subFloat.toLocaleString()} available) for initial float allocation of $${initFloatAmt.toLocaleString()}.`);
       return;
     }
+
+    const selectedMethods = deploySelectedGateways.length > 0 
+      ? deploySelectedGateways 
+      : ["USDT (TRC-20)", "USDT (BEP-20)", "Binance Pay", "BTC", "ETH", "SOL"];
+
+    const primaryService = selectedMethods.slice(0, 2).join(" / ");
 
     const newAgent: ExtendedP2PAgent = {
       id: `p2p-ag-${Date.now().toString().slice(-6)}`,
       name: deployName.trim(),
       phone: deployPhone.trim(),
       phoneNumber: deployPhone.trim(),
-      service: "P2P Agent",
-      rating: "5.0",
-      speed: "1-3 mins",
+      service: primaryService,
+      rating: "5.0 (New Verified Node)",
+      speed: "⚡ 1-3 mins",
       avatar: "👨‍💼",
       isVerified: true,
       isHidden: false,
@@ -525,7 +540,7 @@ export default function SubAdminDashboard({
       shiftStatus: "online",
       isFrozen: false,
       subAdminOwner: currentUser.name,
-      supportedMethods: deploySelectedGateways.length > 0 ? deploySelectedGateways : ["USDT (TRC-20)", "Binance Pay"],
+      supportedMethods: selectedMethods,
       walletAddresses: deployGatewayDetails,
       minLimit: parseFloat(deployMinLimit) || 10,
       maxLimit: parseFloat(deployMaxLimit) || 10000
@@ -535,7 +550,10 @@ export default function SubAdminDashboard({
     saveExtendedAgents(updatedAgents);
 
     if (initFloatAmt > 0) {
-      injectFloatFromSubAdminToAgent(currentSubAdmin.username || currentUser.name, newAgent.id, initFloatAmt);
+      const injectRes = injectFloatFromSubAdminToAgent(currentSubAdmin.username || currentUser.name, newAgent.id, initFloatAmt);
+      if (!injectRes.success) {
+        alert(`Agent created but float allocation failed: ${injectRes.error}`);
+      }
     }
 
     casinoAudio.playWin();
@@ -543,7 +561,7 @@ export default function SubAdminDashboard({
       onAddAuditLog(`SUB-ADMIN DEPLOYMENT: Deployed new agent '${newAgent.name}' (${newAgent.phone}) with initial float $${initFloatAmt.toLocaleString()}`, "success");
     }
 
-    showToast(`🚀 Successfully deployed Agent ${newAgent.name}!`);
+    showToast(`🚀 Successfully deployed Agent ${newAgent.name}! Available globally to players.`);
     setIsDeployAgentOpen(false);
     setDeployName("");
     setDeployPhone("");
@@ -558,30 +576,64 @@ export default function SubAdminDashboard({
 
     const amt = parseFloat(floatAmountInput);
     if (isNaN(amt) || amt <= 0) {
-      alert("Please enter a valid amount.");
+      alert("Please enter a valid numeric amount greater than 0.");
       return;
     }
 
+    const subAdminIdentifier = currentSubAdmin.username || currentUser.name;
+
     if (floatActionType === "topup") {
-      const res = injectFloatFromSubAdminToAgent(currentSubAdmin.username || currentUser.name, selectedAgentForFloatModal.id, amt);
+      const res = adjustAgentBalanceFromSubAdmin(subAdminIdentifier, selectedAgentForFloatModal.id, amt, floatReasonInput || "Sub-Admin Float Top Up");
       if (!res.success) {
-        alert(res.error || "Failed to top up float.");
+        alert(`❌ TOP UP FAILED: ${res.error || "Insufficient balance or invalid operation."}`);
         return;
       }
       casinoAudio.playWin();
-      showToast(`+ $${amt.toLocaleString()} Float allocated to ${selectedAgentForFloatModal.name}!`);
-    } else {
-      const res = recallFloatFromAgentToSubAdmin(currentSubAdmin.username || currentUser.name, selectedAgentForFloatModal.id, amt);
+      showToast(`+ $${amt.toLocaleString()} Float added to ${selectedAgentForFloatModal.name}! (Deducted from Sub-Admin Vault)`);
+    } else if (floatActionType === "recall") {
+      const res = adjustAgentBalanceFromSubAdmin(subAdminIdentifier, selectedAgentForFloatModal.id, -amt, floatReasonInput || "Sub-Admin Float Recall");
       if (!res.success) {
-        alert(res.error || "Failed to recall float.");
+        alert(`❌ RECALL FAILED: ${res.error || "Insufficient agent balance or invalid operation."}`);
         return;
       }
       casinoAudio.playChipClink();
-      showToast(`Recalled $${amt.toLocaleString()} Float from ${selectedAgentForFloatModal.name}!`);
+      showToast(`Recalled $${amt.toLocaleString()} Float from ${selectedAgentForFloatModal.name}! (Returned to Sub-Admin Vault)`);
+    } else if (floatActionType === "exact") {
+      const res = setAgentExactBalanceFromSubAdmin(subAdminIdentifier, selectedAgentForFloatModal.id, amt);
+      if (!res.success) {
+        alert(`❌ BALANCE SET FAILED: ${res.error || "Insufficient funds for adjustment."}`);
+        return;
+      }
+      casinoAudio.playWin();
+      showToast(`Exact balance for ${selectedAgentForFloatModal.name} updated to $${amt.toLocaleString()} USDT!`);
     }
 
     setSelectedAgentForFloatModal(null);
     setFloatAmountInput("1000");
+    setFloatReasonInput("Sub-Admin Float Adjustment");
+    loadP2PData();
+    loadData();
+  };
+
+  const handleDeleteAgentConfirm = (agent: ExtendedP2PAgent) => {
+    const subAdminIdentifier = currentSubAdmin.username || currentUser.name;
+    const res = deleteAgentWithFloatRecall(subAdminIdentifier, agent.id);
+    if (!res.success) {
+      alert(`❌ Failed to delete agent: ${res.error || "Unknown error"}`);
+      return;
+    }
+
+    casinoAudio.playLose();
+    const recalledMsg = res.recalledAmount && res.recalledAmount > 0
+      ? ` Recalled $${res.recalledAmount.toLocaleString()} float back to your vault.`
+      : "";
+    showToast(`🗑️ Agent ${agent.name} deleted.${recalledMsg}`);
+    
+    if (onAddAuditLog) {
+      onAddAuditLog(`SUB-ADMIN: Deleted Agent ${agent.name} (${agent.id}).${recalledMsg}`, "danger");
+    }
+
+    setDeletingAgent(null);
     loadP2PData();
     loadData();
   };
@@ -1312,7 +1364,8 @@ export default function SubAdminDashboard({
                                 setFloatActionType("topup");
                                 setFloatAmountInput("1000");
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase transition-all cursor-pointer shadow"
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase transition-all cursor-pointer shadow flex items-center gap-1"
+                              title="Add Float to Agent (Deducted from Sub-Admin Vault)"
                             >
                               + Top Up
                             </button>
@@ -1323,9 +1376,22 @@ export default function SubAdminDashboard({
                                 setFloatActionType("recall");
                                 setFloatAmountInput(Math.min(1000, ag.balance).toString());
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 text-[10px] font-bold uppercase transition-all cursor-pointer shadow"
+                              className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 text-[10px] font-bold uppercase transition-all cursor-pointer shadow flex items-center gap-1"
+                              title="Recall Float from Agent (Refunded to Sub-Admin Vault)"
                             >
                               - Recall
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setSelectedAgentForFloatModal(ag);
+                                setFloatActionType("exact");
+                                setFloatAmountInput(ag.balance.toString());
+                              }}
+                              className="px-2 py-1 rounded-lg bg-blue-600/80 hover:bg-blue-500 text-white text-[10px] font-bold uppercase transition-all cursor-pointer shadow border border-blue-400/30"
+                              title="Set Exact Agent Float Balance"
+                            >
+                              ⚙️ Balance
                             </button>
 
                             <button
@@ -1347,7 +1413,16 @@ export default function SubAdminDashboard({
                               }}
                               className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold cursor-pointer border border-slate-700"
                             >
-                              ⚙️ Edit
+                              ⚙️ Limits
+                            </button>
+
+                            <button
+                              onClick={() => setDeletingAgent(ag)}
+                              className="px-2 py-1 rounded-lg bg-rose-950/70 hover:bg-rose-900 text-rose-300 hover:text-rose-100 text-[10px] font-bold cursor-pointer border border-rose-800/60 transition-all flex items-center gap-1 shadow-sm"
+                              title="Delete Agent & Auto-Recall Remaining Float"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>Delete</span>
                             </button>
                           </div>
                         </td>
@@ -1744,17 +1819,20 @@ export default function SubAdminDashboard({
         </div>
       )}
 
-      {/* FLOAT TOP UP / RECALL MODAL */}
+      {/* FLOAT TOP UP / RECALL / ADJUST MODAL */}
       {selectedAgentForFloatModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
           <form
             onSubmit={handleTopUpOrRecallFloatSubmit}
             className="bg-slate-900 border border-emerald-500/50 rounded-3xl p-6 max-w-md w-full font-mono space-y-4 shadow-2xl animate-fadeIn"
           >
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-black text-white uppercase flex items-center gap-2">
-                <Coins className="h-5 w-5 text-emerald-400" /> Float Governance for {selectedAgentForFloatModal.name}
-              </h3>
+              <div>
+                <h3 className="text-sm font-black text-white uppercase flex items-center gap-2">
+                  <Coins className="h-5 w-5 text-emerald-400" /> Float Governance & Adjustment
+                </h3>
+                <p className="text-[11px] text-slate-400">Agent: <strong className="text-amber-300">{selectedAgentForFloatModal.name}</strong> ({selectedAgentForFloatModal.phone})</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setSelectedAgentForFloatModal(null)}
@@ -1765,69 +1843,215 @@ export default function SubAdminDashboard({
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1.5">
                 <div className="flex justify-between text-slate-400">
-                  <span>Sub-Admin Available Float:</span>
-                  <strong className="text-emerald-400">${(currentSubAdmin.floatBalance || 0).toLocaleString()}</strong>
+                  <span>Sub-Admin Vault Balance:</span>
+                  <strong className="text-emerald-400 font-bold">${(currentSubAdmin.floatBalance || 0).toLocaleString()} USDT</strong>
                 </div>
                 <div className="flex justify-between text-slate-400">
-                  <span>Agent Current Vault:</span>
-                  <strong className="text-amber-300">${selectedAgentForFloatModal.balance.toLocaleString()}</strong>
+                  <span>Agent Current Float:</span>
+                  <strong className="text-amber-300 font-bold">${(selectedAgentForFloatModal.balance || 0).toLocaleString()} USDT</strong>
                 </div>
               </div>
 
               <div>
-                <label className="text-slate-400 uppercase font-bold text-[10px] block mb-1">Action Type</label>
-                <div className="grid grid-cols-2 gap-2">
+                <label className="text-slate-400 uppercase font-bold text-[10px] block mb-1">Adjustment Mode</label>
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setFloatActionType("topup")}
-                    className={`py-2 rounded-xl font-black uppercase text-xs cursor-pointer ${
-                      floatActionType === "topup" ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400"
+                    className={`py-2 rounded-xl font-black uppercase text-[10.5px] cursor-pointer transition-all ${
+                      floatActionType === "topup" ? "bg-emerald-600 text-white shadow" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
                     }`}
                   >
-                    + Top Up Float
+                    + Top Up
                   </button>
                   <button
                     type="button"
                     onClick={() => setFloatActionType("recall")}
-                    className={`py-2 rounded-xl font-black uppercase text-xs cursor-pointer ${
-                      floatActionType === "recall" ? "bg-amber-600 text-slate-950" : "bg-slate-800 text-slate-400"
+                    className={`py-2 rounded-xl font-black uppercase text-[10.5px] cursor-pointer transition-all ${
+                      floatActionType === "recall" ? "bg-amber-600 text-slate-950 shadow" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
                     }`}
                   >
-                    - Recall Float
+                    - Recall
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFloatActionType("exact")}
+                    className={`py-2 rounded-xl font-black uppercase text-[10.5px] cursor-pointer transition-all ${
+                      floatActionType === "exact" ? "bg-blue-600 text-white shadow" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                    }`}
+                  >
+                    ⚙️ Set Exact
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="text-slate-400 uppercase font-bold text-[10px] block mb-1">Transfer Amount ($ Chips)</label>
+                <label className="text-slate-400 uppercase font-bold text-[10px] block mb-1">
+                  {floatActionType === "topup" && "Amount to Allocate from Sub-Admin Vault ($ USDT)"}
+                  {floatActionType === "recall" && "Amount to Recall back to Sub-Admin Vault ($ USDT)"}
+                  {floatActionType === "exact" && "Target Exact Agent Balance ($ USDT)"}
+                </label>
                 <input
                   type="number"
                   required
+                  min="0.01"
+                  step="any"
                   value={floatAmountInput}
                   onChange={(e) => setFloatAmountInput(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-amber-300 font-bold text-lg outline-none focus:border-emerald-500"
+                  placeholder="Enter amount..."
                 />
               </div>
+
+              <div>
+                <label className="text-slate-400 uppercase font-bold text-[10px] block mb-1">Reason / Note</label>
+                <input
+                  type="text"
+                  value={floatReasonInput}
+                  onChange={(e) => setFloatReasonInput(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-slate-200 text-xs outline-none focus:border-slate-600"
+                  placeholder="e.g. Liquidity injection, shift top up..."
+                />
+              </div>
+
+              {/* Dynamic Calculations & Validation Preview */}
+              {(() => {
+                const amt = parseFloat(floatAmountInput) || 0;
+                const subBal = currentSubAdmin.floatBalance || 0;
+                const agBal = selectedAgentForFloatModal.balance || 0;
+                
+                let nextSubBal = subBal;
+                let nextAgBal = agBal;
+                let isInvalid = false;
+                let errorMsg = "";
+
+                if (floatActionType === "topup") {
+                  nextSubBal = subBal - amt;
+                  nextAgBal = agBal + amt;
+                  if (amt > subBal) {
+                    isInvalid = true;
+                    errorMsg = `Insufficient Sub-Admin Vault Balance ($${subBal.toLocaleString()} available, $${amt.toLocaleString()} requested)`;
+                  }
+                } else if (floatActionType === "recall") {
+                  nextSubBal = subBal + amt;
+                  nextAgBal = agBal - amt;
+                  if (amt > agBal) {
+                    isInvalid = true;
+                    errorMsg = `Cannot recall more than Agent current float ($${agBal.toLocaleString()} available)`;
+                  }
+                } else if (floatActionType === "exact") {
+                  const delta = amt - agBal;
+                  nextSubBal = subBal - delta;
+                  nextAgBal = amt;
+                  if (delta > 0 && delta > subBal) {
+                    isInvalid = true;
+                    errorMsg = `Insufficient Sub-Admin Vault Balance to increase agent float by $${delta.toLocaleString()}`;
+                  }
+                  if (amt < 0) {
+                    isInvalid = true;
+                    errorMsg = "Balance cannot be negative";
+                  }
+                }
+
+                return (
+                  <div className="space-y-2">
+                    <div className="p-2.5 bg-slate-950/70 rounded-xl border border-slate-800/80 text-[11px] space-y-1">
+                      <div className="text-slate-400 font-bold uppercase text-[9.5px]">Projected Balances After Operation:</div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Sub-Admin Vault:</span>
+                        <span className={`font-bold ${nextSubBal < 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                          ${Math.max(0, nextSubBal).toLocaleString()} USDT
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Agent Float:</span>
+                        <span className="text-amber-300 font-bold">${Math.max(0, nextAgBal).toLocaleString()} USDT</span>
+                      </div>
+                    </div>
+
+                    {isInvalid && (
+                      <div className="p-2 rounded-xl bg-rose-950/60 border border-rose-600/50 text-rose-300 text-[10.5px] font-bold flex items-center gap-1.5">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
+                        <span>{errorMsg}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="pt-3 flex gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedAgentForFloatModal(null)}
-                  className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-bold uppercase text-xs"
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold uppercase text-xs cursor-pointer transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-black uppercase text-xs shadow cursor-pointer"
+                  className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-black uppercase text-xs shadow cursor-pointer transition-all"
                 >
-                  Execute Transfer
+                  Execute Adjustment
                 </button>
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* DELETE AGENT CONFIRMATION MODAL */}
+      {deletingAgent && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-rose-500/60 rounded-3xl p-6 max-w-md w-full font-mono space-y-4 shadow-2xl animate-fadeIn">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-black text-rose-400 uppercase flex items-center gap-2">
+                <Trash2 className="h-5 w-5 text-rose-500" /> Confirm Agent Deletion
+              </h3>
+              <button
+                type="button"
+                onClick={() => setDeletingAgent(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-rose-950/40 border border-rose-900/60 rounded-2xl space-y-2">
+                <div className="text-rose-200 font-bold">
+                  Are you sure you want to permanently delete Agent <strong className="text-white">"{deletingAgent.name}"</strong>?
+                </div>
+                <div className="text-[11px] text-slate-300 space-y-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                  <div>• ID: <span className="text-amber-300 font-mono">{deletingAgent.id}</span></div>
+                  <div>• Phone: <span className="text-white">{deletingAgent.phone}</span></div>
+                  <div>• Current Float Balance: <span className="text-emerald-400 font-bold">${(deletingAgent.balance || 0).toLocaleString()} USDT</span></div>
+                </div>
+                <div className="text-[11px] text-amber-300/90 font-medium">
+                  💰 <strong>Automatic Float Recall:</strong> Any remaining float ($<strong>{(deletingAgent.balance || 0).toLocaleString()}</strong>) will be instantly recalled and credited back to your Sub-Admin Vault Balance.
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingAgent(null)}
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold uppercase text-xs cursor-pointer transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAgentConfirm(deletingAgent)}
+                  className="flex-1 py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:brightness-110 text-white rounded-xl font-black uppercase text-xs shadow-lg shadow-rose-950/60 cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete & Recall Float</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

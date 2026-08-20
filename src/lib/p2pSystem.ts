@@ -43,6 +43,23 @@ export interface ExtendedSubAdmin extends SubAdmin {
  * Global Financial State Event Broadcaster
  * Dispatches all custom storage & financial reactivity events for cross-tab & live UI sync
  */
+let globalFinancialChannel: BroadcastChannel | null = null;
+try {
+  if (typeof BroadcastChannel !== "undefined") {
+    globalFinancialChannel = new BroadcastChannel("nexaspin_financial_sync");
+    globalFinancialChannel.onmessage = (ev) => {
+      try {
+        window.dispatchEvent(new Event("casino_balance_updated"));
+        window.dispatchEvent(new Event("p2p_requests_updated"));
+        window.dispatchEvent(new Event("p2p_state_updated"));
+        window.dispatchEvent(new Event("banking_requests_updated"));
+        window.dispatchEvent(new Event("casino_admin_audit_updated"));
+        window.dispatchEvent(new Event("storage"));
+      } catch (e) {}
+    };
+  }
+} catch (e) {}
+
 export function broadcastFinancialStateUpdates(): void {
   try {
     window.dispatchEvent(new Event("casino_balance_updated"));
@@ -51,6 +68,10 @@ export function broadcastFinancialStateUpdates(): void {
     window.dispatchEvent(new Event("banking_requests_updated"));
     window.dispatchEvent(new Event("casino_admin_audit_updated"));
     window.dispatchEvent(new Event("storage"));
+
+    if (globalFinancialChannel) {
+      globalFinancialChannel.postMessage({ timestamp: Date.now(), type: "SYNC_FINANCIAL_STATE" });
+    }
   } catch (e) {
     console.error("Error broadcasting financial state updates:", e);
   }
@@ -826,20 +847,27 @@ export function raiseP2PDispute(requestId: string, openedByRole: string, reason:
  * Rule 3: Sub-Admin Float -Amount, Agent Float +Amount, House Vault Reserves Unchanged.
  */
 export function injectFloatFromSubAdminToAgent(
-  subAdminUsername: string,
+  subAdminUsernameOrName: string,
   agentId: string,
   amount: number
 ): { success: boolean; error?: string } {
   if (amount <= 0) return { success: false, error: "Amount must be positive." };
 
   const subAdmins = getExtendedSubAdmins();
-  const saIndex = subAdmins.findIndex((sa) => sa.username === subAdminUsername);
+  const saIndex = subAdmins.findIndex(
+    (sa) =>
+      sa.username?.toLowerCase() === subAdminUsernameOrName?.toLowerCase() ||
+      sa.name?.toLowerCase() === subAdminUsernameOrName?.toLowerCase()
+  );
   if (saIndex === -1) return { success: false, error: "Sub-Admin account not found." };
 
   const sa = subAdmins[saIndex];
   const saFloat = sa.floatBalance || 0;
   if (saFloat < amount) {
-    return { success: false, error: `Insufficient Sub-Admin Float Balance ($${saFloat.toLocaleString()}) to allocate $${amount.toLocaleString()} to Agent.` };
+    return { 
+      success: false, 
+      error: `Insufficient Sub-Admin Float Balance! You have $${saFloat.toLocaleString()}, but $${amount.toLocaleString()} is required. Please request float top-up from Main Admin.` 
+    };
   }
 
   const agents = getExtendedAgents();
@@ -855,7 +883,8 @@ export function injectFloatFromSubAdminToAgent(
   agents[agentIndex] = agent;
   saveExtendedAgents(agents);
 
-  addP2PAuditLog(`FLOAT ALLOCATION: Sub-Admin ${sa.name} allocated $${amount.toLocaleString()} float to Agent ${agent.name}. Agent float now: $${agent.balance.toLocaleString()}`, "success");
+  addP2PAuditLog(`[TIER 2] FLOAT ALLOCATION: Sub-Admin ${sa.name} allocated $${amount.toLocaleString()} float to Agent ${agent.name}. Sub-Admin Float now: $${sa.floatBalance.toLocaleString()} | Agent Float now: $${agent.balance.toLocaleString()}`, "success");
+  addAdminAuditLog(`[TIER 2] SUB-ADMIN -> AGENT: ${sa.name} allocated $${amount.toLocaleString()} to Agent ${agent.name} (${agent.id}). Sub-Admin Balance: $${sa.floatBalance.toLocaleString()}`, "info", "SUBADMIN_TO_AGENT");
 
   broadcastFinancialStateUpdates();
   return { success: true };
@@ -866,7 +895,7 @@ export function injectFloatFromSubAdminToAgent(
  * Rule 3: Agent Float -Amount, Sub-Admin Float +Amount, House Vault Reserves Unchanged.
  */
 export function recallFloatFromAgentToSubAdmin(
-  subAdminUsername: string,
+  subAdminUsernameOrName: string,
   agentId: string,
   amount: number
 ): { success: boolean; error?: string } {
@@ -882,7 +911,11 @@ export function recallFloatFromAgentToSubAdmin(
   }
 
   const subAdmins = getExtendedSubAdmins();
-  const saIndex = subAdmins.findIndex((sa) => sa.username === subAdminUsername || sa.name === subAdminUsername);
+  const saIndex = subAdmins.findIndex(
+    (sa) =>
+      sa.username?.toLowerCase() === subAdminUsernameOrName?.toLowerCase() ||
+      sa.name?.toLowerCase() === subAdminUsernameOrName?.toLowerCase()
+  );
   
   if (saIndex !== -1) {
     const sa = subAdmins[saIndex];
@@ -895,10 +928,219 @@ export function recallFloatFromAgentToSubAdmin(
   agents[agentIndex] = agent;
   saveExtendedAgents(agents);
 
-  addP2PAuditLog(`FLOAT RECALL: Recalled $${amount.toLocaleString()} float from Agent ${agent.name}. Agent float now: $${agent.balance.toLocaleString()}`, "info");
+  const saName = saIndex !== -1 ? subAdmins[saIndex].name : subAdminUsernameOrName;
+  const saBal = saIndex !== -1 ? subAdmins[saIndex].floatBalance : 0;
+  addP2PAuditLog(`[TIER 2] FLOAT RECALL: Recalled $${amount.toLocaleString()} float from Agent ${agent.name} back to Sub-Admin ${saName}. Agent float now: $${agent.balance.toLocaleString()}`, "info");
+  addAdminAuditLog(`[TIER 2] AGENT -> SUB-ADMIN RECALL: Recalled $${amount.toLocaleString()} from Agent ${agent.name} to Sub-Admin ${saName}. Sub-Admin Float: $${saBal?.toLocaleString()}`, "info", "AGENT_TO_SUBADMIN_RECALL");
 
   broadcastFinancialStateUpdates();
   return { success: true };
+}
+
+/**
+ * Universal Sub-Admin Agent Balance Adjustment
+ * Supports positive delta (Top-up), negative delta (Cut/Recall), with strict balance constraint validation
+ */
+export function adjustAgentBalanceFromSubAdmin(
+  subAdminUsernameOrName: string,
+  agentId: string,
+  deltaAmount: number,
+  reason: string = "Operational Float Adjustment"
+): { success: boolean; error?: string; newAgentBalance?: number; newSubAdminBalance?: number } {
+  if (deltaAmount === 0) return { success: true };
+
+  if (deltaAmount > 0) {
+    // Adding balance to agent: Deduct from Sub-Admin
+    const res = injectFloatFromSubAdminToAgent(subAdminUsernameOrName, agentId, deltaAmount);
+    if (!res.success) return { success: false, error: res.error };
+  } else {
+    // Reducing balance from agent: Recall back to Sub-Admin
+    const recallAmt = Math.abs(deltaAmount);
+    const res = recallFloatFromAgentToSubAdmin(subAdminUsernameOrName, agentId, recallAmt);
+    if (!res.success) return { success: false, error: res.error };
+  }
+
+  const agents = getExtendedAgents();
+  const ag = agents.find(a => a.id === agentId);
+  const subAdmins = getExtendedSubAdmins();
+  const sa = subAdmins.find(
+    s => s.username?.toLowerCase() === subAdminUsernameOrName?.toLowerCase() ||
+         s.name?.toLowerCase() === subAdminUsernameOrName?.toLowerCase()
+  );
+
+  return {
+    success: true,
+    newAgentBalance: ag?.balance,
+    newSubAdminBalance: sa?.floatBalance
+  };
+}
+
+/**
+ * Set Exact Agent Float Balance from Sub-Admin
+ */
+export function setAgentExactBalanceFromSubAdmin(
+  subAdminUsernameOrName: string,
+  agentId: string,
+  targetBalance: number
+): { success: boolean; error?: string; newAgentBalance?: number; newSubAdminBalance?: number } {
+  if (targetBalance < 0) return { success: false, error: "Target balance cannot be negative." };
+
+  const agents = getExtendedAgents();
+  const agent = agents.find(a => a.id === agentId);
+  if (!agent) return { success: false, error: "Agent not found." };
+
+  const currentBalance = agent.balance || 0;
+  const delta = targetBalance - currentBalance;
+
+  return adjustAgentBalanceFromSubAdmin(subAdminUsernameOrName, agentId, delta, `Set exact balance to $${targetBalance.toLocaleString()}`);
+}
+
+/**
+ * Delete Agent with Automatic Remaining Float Recall to Sub-Admin Vault
+ */
+export function deleteAgentWithFloatRecall(
+  subAdminUsernameOrName: string,
+  agentId: string
+): { success: boolean; error?: string; recalledAmount?: number; remainingAgents?: ExtendedP2PAgent[] } {
+  const agents = getExtendedAgents();
+  const agent = agents.find(a => a.id === agentId);
+  if (!agent) return { success: false, error: "Agent not found." };
+
+  const remainingFloat = agent.balance || 0;
+  let recalled = 0;
+
+  // If agent has remaining float, recall it back to Sub-Admin vault
+  if (remainingFloat > 0) {
+    const subAdmins = getExtendedSubAdmins();
+    const saIndex = subAdmins.findIndex(
+      (sa) =>
+        sa.username?.toLowerCase() === subAdminUsernameOrName?.toLowerCase() ||
+        sa.name?.toLowerCase() === subAdminUsernameOrName?.toLowerCase()
+    );
+
+    if (saIndex !== -1) {
+      subAdmins[saIndex].floatBalance = (subAdmins[saIndex].floatBalance || 0) + remainingFloat;
+      saveExtendedSubAdmins(subAdmins);
+      recalled = remainingFloat;
+    }
+  }
+
+  // Remove agent from all persistent registries
+  const updatedAgents = deleteExtendedP2PAgent(agentId);
+
+  addP2PAuditLog(`[SUB-ADMIN DELETION] Deleted Agent ${agent.name} (${agent.phone}). Recalled $${recalled.toLocaleString()} remaining float to Sub-Admin vault.`, "danger");
+  addAdminAuditLog(`[AGENT REMOVED] Sub-Admin deleted Agent ${agent.name} (${agent.id}). Recalled float $${recalled.toLocaleString()} to Sub-Admin vault.`, "warning", "AGENT_DELETED");
+
+  broadcastFinancialStateUpdates();
+  return {
+    success: true,
+    recalledAmount: recalled,
+    remainingAgents: updatedAgents
+  };
+}
+
+/**
+ * Main Admin Direct Sub-Admin Wallet Balance Adjustment (Add / Cut funds)
+ * Rule: Admin adds/cuts Sub-Admin float wallet balance, symmetric offset against House Vault Reserves.
+ */
+export function adjustSubAdminWalletBalance(
+  subAdminUsernameOrName: string,
+  deltaAmount: number,
+  adminActor: string = "Main Admin",
+  reason: string = "Admin Float Adjustment"
+): { 
+  success: boolean; 
+  error?: string; 
+  newFloatBalance?: number; 
+  newAllocatedFloat?: number;
+  updatedSubAdmin?: SubAdmin;
+  subAdmins?: SubAdmin[];
+} {
+  if (deltaAmount === 0) {
+    const subAdmins = getExtendedSubAdmins();
+    const sa = subAdmins.find(
+      (s) =>
+        s.username?.toLowerCase() === subAdminUsernameOrName?.toLowerCase() ||
+        s.name?.toLowerCase() === subAdminUsernameOrName?.toLowerCase()
+    );
+    return { success: true, updatedSubAdmin: sa, subAdmins };
+  }
+
+  const subAdmins = getExtendedSubAdmins();
+  const saIndex = subAdmins.findIndex(
+    (sa) =>
+      sa.username?.toLowerCase() === subAdminUsernameOrName?.toLowerCase() ||
+      sa.name?.toLowerCase() === subAdminUsernameOrName?.toLowerCase()
+  );
+  if (saIndex === -1) return { success: false, error: "Sub-Admin account not found." };
+
+  const sa = subAdmins[saIndex];
+  const currentFloat = sa.floatBalance || 0;
+  const currentAllocated = sa.allocatedFloat || 0;
+
+  if (deltaAmount < 0 && currentFloat < Math.abs(deltaAmount)) {
+    return {
+      success: false,
+      error: `Cannot cut $${Math.abs(deltaAmount).toLocaleString()}. Sub-Admin only has $${currentFloat.toLocaleString()} float balance.`
+    };
+  }
+
+  const newFloat = Math.max(0, currentFloat + deltaAmount);
+  const newAllocated = Math.max(0, currentAllocated + deltaAmount);
+
+  sa.floatBalance = newFloat;
+  sa.allocatedFloat = newAllocated;
+  subAdmins[saIndex] = sa;
+  saveExtendedSubAdmins(subAdmins);
+
+  // Symmetrically offset House Vault Reserves
+  updateHouseVaultReserves(-deltaAmount);
+
+  const actionWord = deltaAmount > 0 ? "added" : "cut";
+  const absAmount = Math.abs(deltaAmount);
+
+  addAdminAuditLog(
+    `[TIER 1] MAIN ADMIN -> SUB-ADMIN WALLET: ${adminActor} ${actionWord} $${absAmount.toLocaleString()} ${deltaAmount > 0 ? "to" : "from"} Sub-Admin ${sa.name}'s wallet. New Float Balance: $${newFloat.toLocaleString()} (${reason})`,
+    deltaAmount > 0 ? "success" : "warning",
+    "SUBADMIN_WALLET_ADJUST"
+  );
+
+  addP2PAuditLog(
+    `[TIER 1] SUB-ADMIN WALLET MODIFICATION: ${adminActor} ${actionWord} $${absAmount.toLocaleString()} for Sub-Admin ${sa.name}. Vault Balance now: $${newFloat.toLocaleString()}`,
+    deltaAmount > 0 ? "success" : "warning"
+  );
+
+  broadcastFinancialStateUpdates();
+  return {
+    success: true,
+    newFloatBalance: newFloat,
+    newAllocatedFloat: newAllocated,
+    updatedSubAdmin: sa,
+    subAdmins: subAdmins
+  };
+}
+
+/**
+ * Set Exact Sub-Admin Wallet Balance
+ */
+export function setSubAdminExactWalletBalance(
+  subAdminUsernameOrName: string,
+  targetBalance: number,
+  adminActor: string = "Main Admin"
+): { success: boolean; error?: string; newFloatBalance?: number } {
+  if (targetBalance < 0) return { success: false, error: "Target balance cannot be negative." };
+
+  const subAdmins = getExtendedSubAdmins();
+  const sa = subAdmins.find(
+    s => s.username?.toLowerCase() === subAdminUsernameOrName?.toLowerCase() ||
+         s.name?.toLowerCase() === subAdminUsernameOrName?.toLowerCase()
+  );
+  if (!sa) return { success: false, error: "Sub-Admin account not found." };
+
+  const current = sa.floatBalance || 0;
+  const delta = targetBalance - current;
+
+  return adjustSubAdminWalletBalance(subAdminUsernameOrName, delta, adminActor, `Set exact wallet balance to $${targetBalance.toLocaleString()}`);
 }
 
 /**
@@ -909,25 +1151,7 @@ export function allocateFloatFromMainAdminToSubAdmin(
   subAdminUsername: string,
   amount: number
 ): { success: boolean; error?: string } {
-  if (amount <= 0) return { success: false, error: "Amount must be positive." };
-
-  const subAdmins = getExtendedSubAdmins();
-  const saIndex = subAdmins.findIndex((sa) => sa.username === subAdminUsername);
-  if (saIndex === -1) return { success: false, error: "Sub-Admin account not found." };
-
-  const sa = subAdmins[saIndex];
-  sa.floatBalance = (sa.floatBalance || 0) + amount;
-  sa.allocatedFloat = (sa.allocatedFloat || 0) + amount;
-  subAdmins[saIndex] = sa;
-  saveExtendedSubAdmins(subAdmins);
-
-  // Offset House Vault Reserves by -amount
-  updateHouseVaultReserves(-amount);
-
-  addAdminAuditLog(`MAIN ADMIN FLOAT: Allocated $${amount.toLocaleString()} global operational credit to Sub-Admin ${sa.name}. House Vault Reserves offset -$${amount.toLocaleString()}`, "success", "SUBADMIN_FLOAT");
-
-  broadcastFinancialStateUpdates();
-  return { success: true };
+  return adjustSubAdminWalletBalance(subAdminUsername, amount, "Main Admin", "Direct Float Allocation");
 }
 
 /**

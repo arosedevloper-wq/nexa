@@ -407,7 +407,7 @@ export default function NeonPlinko({ chips, onWin, onLose, onCommentaryRequest }
     };
   }, [autoDrop, bet, risk, chips]);
 
-  const handleDropBall = () => {
+  const handleDropBall = (customX?: number) => {
     if (chips < bet) {
       setAutoDrop(false);
       return;
@@ -416,8 +416,8 @@ export default function NeonPlinko({ chips, onWin, onLose, onCommentaryRequest }
     casinoAudio.playChipClink();
     onLose(bet, `Placed $${bet} Plinko Drop Bet`);
 
-    // Spawn slightly offset from center top so they cascade randomly
-    const startOffset = (Math.random() - 0.5) * 16;
+    // Spawn slightly offset from center top or touch X
+    const spawnX = customX !== undefined ? Math.max(width * 0.2, Math.min(width * 0.8, customX)) : (width / 2 + (Math.random() - 0.5) * 16);
     const colors = ["#f43f5e", "#10b981", "#06b6d4", "#eab308", "#a855f7", "#ec4899"];
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
@@ -425,7 +425,7 @@ export default function NeonPlinko({ chips, onWin, onLose, onCommentaryRequest }
 
     const newBall: PlinkoBall = {
       id: Math.random().toString(36).substring(2, 9),
-      x: width / 2 + startOffset,
+      x: spawnX,
       y: 45,
       vx: (Math.random() - 0.5) * 1.5,
       vy: 1,
@@ -438,6 +438,27 @@ export default function NeonPlinko({ chips, onWin, onLose, onCommentaryRequest }
 
     ballsRef.current.push(newBall);
   };
+
+  // Passive touch event listener on canvas for instant mobile ball drop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const relativeX = ((touch.clientX - rect.left) / rect.width) * width;
+        handleDropBall(relativeX);
+      }
+    };
+
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: true });
+
+    return () => {
+      canvas.removeEventListener("touchstart", handleTouchStart);
+    };
+  }, [chips, bet, risk, width]);
 
   const adjustBet = (amount: number) => {
     casinoAudio.playClick();
@@ -495,7 +516,12 @@ export default function NeonPlinko({ chips, onWin, onLose, onCommentaryRequest }
             ref={canvasRef}
             width={width}
             height={height}
-            className="w-full max-w-[440px] aspect-[500/550] bg-slate-950 rounded-2xl shadow-xl select-none"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const relativeX = ((e.clientX - rect.left) / rect.width) * width;
+              handleDropBall(relativeX);
+            }}
+            className="w-full max-w-[440px] aspect-[500/550] bg-slate-950 rounded-2xl shadow-xl select-none touch-none cursor-pointer"
           />
         </div>
 
@@ -572,7 +598,7 @@ export default function NeonPlinko({ chips, onWin, onLose, onCommentaryRequest }
           {/* Action Launch Buttons */}
           <div className="space-y-3">
             <button
-              onClick={handleDropBall}
+              onClick={() => handleDropBall()}
               disabled={chips < bet}
               className="w-full py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-sans font-black text-sm rounded-2xl shadow-lg shadow-indigo-950/40 hover:shadow-indigo-500/10 cursor-pointer transition-all disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2 uppercase tracking-wider"
             >

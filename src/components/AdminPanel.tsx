@@ -47,7 +47,8 @@ import { setGlobalRtp } from "../data/gameData";
 import { 
   broadcastFinancialStateUpdates, 
   updateHouseVaultReserves, 
-  setHouseVaultReserves 
+  setHouseVaultReserves,
+  adjustSubAdminWalletBalance
 } from "../lib/p2pSystem";
 
 interface Player {
@@ -945,6 +946,35 @@ export default function AdminPanel({
     });
     setSubAdmins(updated);
     saveAllSubAdminsToDatabase(updated);
+  };
+
+  const [subAdminAdjustAmounts, setSubAdminAdjustAmounts] = useState<Record<string, string>>({});
+
+  const handleModifySubAdminWalletBalance = (username: string, amount: number, mode: "add" | "cut") => {
+    if (isNaN(amount) || amount <= 0) {
+      alert("Please enter a valid positive amount.");
+      return;
+    }
+    const sa = subAdmins.find(s => s.username === username);
+    if (!sa) return;
+
+    const currentFloat = sa.floatBalance ?? 50000;
+    if (mode === "cut" && amount > currentFloat) {
+      alert(`Cannot cut $${amount.toLocaleString()} USDT. Sub-Admin only has $${currentFloat.toLocaleString()} USDT in their vault.`);
+      return;
+    }
+
+    const res = adjustSubAdminWalletBalance(username, mode === "add" ? amount : -amount, `Admin direct balance adjustment (${mode})`);
+    if (!res.success) {
+      alert(res.error || "Failed to adjust Sub-Admin wallet.");
+      return;
+    }
+
+    setSubAdmins(res.subAdmins);
+    setSubAdminAdjustAmounts(prev => ({ ...prev, [username]: "" }));
+    casinoAudio.playChipClink();
+    onAddAuditLog(`ADMIN: ${mode === "add" ? "Allocated" : "Deducted"} $${amount.toLocaleString()} USDT ${mode === "add" ? "to" : "from"} Sub-Admin [${sa.name}] wallet. New Vault: $${(res.updatedSubAdmin.floatBalance || 0).toLocaleString()}`, mode === "add" ? "success" : "warning");
+    addHarbingerLog("SUB_ADMIN_WALLET_ADJUSTED", `${mode.toUpperCase()} $${amount.toLocaleString()} for Sub-Admin ${sa.name}. Current Vault: $${(res.updatedSubAdmin.floatBalance || 0).toLocaleString()}`);
   };
 
   const [pnlStats, setPnlStats] = useState({
@@ -5798,6 +5828,53 @@ export default function AdminPanel({
                                   title="Revoke Node"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Sub-Admin Wallet & Float Liquidity Hub */}
+                            <div className="mt-3 p-3 bg-slate-950/80 rounded-xl border border-slate-850 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 font-mono">
+                              <div className="flex items-center gap-4">
+                                <div className="space-y-0.5">
+                                  <span className="text-[9px] text-slate-500 uppercase font-bold block">Sub-Admin Vault Balance</span>
+                                  <span className="text-sm font-black text-emerald-400">
+                                    ${(sa.floatBalance ?? 50000).toLocaleString()} <span className="text-[9px] text-slate-400 font-normal">USDT</span>
+                                  </span>
+                                </div>
+                                <div className="border-l border-slate-800 pl-4 space-y-0.5">
+                                  <span className="text-[9px] text-slate-500 uppercase font-bold block">Allocated to Agents</span>
+                                  <span className="text-xs font-bold text-amber-300">
+                                    ${(sa.allocatedFloat ?? 0).toLocaleString()} <span className="text-[9px] text-slate-400 font-normal">USDT</span>
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Admin direct Add / Cut controls */}
+                              <div className="flex items-center gap-1.5 self-end md:self-center">
+                                <span className="text-[9px] text-slate-500 uppercase font-bold mr-1 hidden sm:inline">Admin Vault Control:</span>
+                                <input
+                                  type="number"
+                                  placeholder="USDT Amount"
+                                  value={subAdminAdjustAmounts[sa.username] || ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setSubAdminAdjustAmounts(prev => ({ ...prev, [sa.username]: v }));
+                                  }}
+                                  className="w-28 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 font-mono text-xs text-amber-300 font-bold outline-none focus:border-amber-500/50"
+                                />
+                                <button
+                                  onClick={() => handleModifySubAdminWalletBalance(sa.username, Number(subAdminAdjustAmounts[sa.username] || 0), "add")}
+                                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-mono text-[10px] font-black uppercase transition-colors flex items-center justify-center gap-0.5 cursor-pointer shadow"
+                                  title="Add funds directly to Sub-Admin Vault (from Casino Reserves)"
+                                >
+                                  <Plus className="h-3 w-3" /> Add
+                                </button>
+                                <button
+                                  onClick={() => handleModifySubAdminWalletBalance(sa.username, Number(subAdminAdjustAmounts[sa.username] || 0), "cut")}
+                                  className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-mono text-[10px] font-black uppercase transition-colors flex items-center justify-center gap-0.5 cursor-pointer shadow"
+                                  title="Deduct funds directly from Sub-Admin Vault (returned to Casino Reserves)"
+                                >
+                                  <Minus className="h-3 w-3" /> Cut
                                 </button>
                               </div>
                             </div>

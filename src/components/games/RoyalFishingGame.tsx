@@ -127,7 +127,7 @@ export const RoyalFishingGame: React.FC<RoyalFishingGameProps> = ({
     };
   }, [betAmount]);
 
-  const handleShootCannon = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const fireCannonAt = (clientX: number, clientY: number) => {
     if (chips < betAmount) {
       setMessage("Insufficient chips! Please claim bonus or deposit chips to shoot.");
       casinoAudio.playClick();
@@ -138,8 +138,8 @@ export const RoyalFishingGame: React.FC<RoyalFishingGameProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const targetX = e.clientX - rect.left;
-    const targetY = e.clientY - rect.top;
+    const targetX = clientX - rect.left;
+    const targetY = clientY - rect.top;
 
     const cannonX = canvas.width / 2;
     const cannonY = canvas.height;
@@ -154,6 +154,29 @@ export const RoyalFishingGame: React.FC<RoyalFishingGameProps> = ({
       vy: Math.sin(angle) * speed,
     });
   };
+
+  const handleShootCannon = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    fireCannonAt(e.clientX, e.clientY);
+  };
+
+  // Passive touch event listeners for high-fluidity mobile interaction
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        fireCannonAt(touch.clientX, touch.clientY);
+      }
+    };
+
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: true });
+
+    return () => {
+      canvas.removeEventListener("touchstart", handleTouchStart);
+    };
+  }, [chips, betAmount]);
 
   return (
     <div className="w-full bg-slate-950 rounded-2xl border border-sky-500/30 p-5 shadow-2xl font-sans text-slate-100 flex flex-col gap-4">
@@ -179,7 +202,7 @@ export const RoyalFishingGame: React.FC<RoyalFishingGameProps> = ({
 
       {/* Ocean Canvas Arena */}
       <div className="relative w-full rounded-2xl border border-slate-800 overflow-hidden shadow-inner cursor-crosshair">
-        <canvas ref={canvasRef} onClick={handleShootCannon} className="w-full h-[320px] block" />
+        <canvas ref={canvasRef} onClick={handleShootCannon} className="w-full h-[320px] block touch-none select-none" />
       </div>
 
       {/* Controls */}
